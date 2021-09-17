@@ -8,12 +8,11 @@ FILE* stream;
 FILE* readImageFile(FILE* stream)
 {
  
-    errno_t err;
-    err = fopen_s(&stream, "bigandsmall.dmg", "r");
+    stream = fopen("bigandsmall.dmg", "r");
 
-    if (err == 0)
+    if (stream != 0)
     {
-        printf("The file 'bigandsmall' was opened, %d\n", err);
+        printf("The file 'bigandsmall' was opened\n");
     }
     else
     {
@@ -24,7 +23,7 @@ FILE* readImageFile(FILE* stream)
 
 FILE* parseDMGTrailer(FILE* stream)
 {
-
+    UDIFResourceFile trailer1;
     fseek(stream, 0L, SEEK_END);
     // calculating the size of the file
     fileSize = ftell(stream);
@@ -40,22 +39,18 @@ FILE* parseDMGTrailer(FILE* stream)
     else
     {
         printf("The file seeked to right position  %d and ftell is %d\n", resultOfParse,ftell(stream));
-        uint8_t magic[4] = { "" };
-        fread(magic, 1, 4, stream);
-        printf("The magic signature is %s", magic);
 
-        fseek(stream, 200, SEEK_CUR);
-        printf("The ftell to get the xmlofffset is %d:", ftell(stream));
-        uint64_t xmloffset;
-        printf("The size of long is %d", sizeof(uint64_t));
-        fread(&xmloffset, 8, 1, stream);
-        printf("Printing the offset of xml %llu", xmloffset);
-        
-        fread(&xmllength, 8, 1, stream);
-        printf("Printing the length of xml %lld", xmllength);
+        int bytesRead = fread(&trailer1, 512, 1, stream);
+        printf("The bytes read %d\n", bytesRead);
 
-        //seeking to the xmloffset.
-        fseek(stream, xmloffset, SEEK_SET);
+        printf("The magic signature is %s\n", trailer1.Signature);
+        printf("The xmloffset is %llu\n", trailer1.XMLOffset);
+        printf("The xmllength is %llu\n", trailer1.XMLLength);
+        printf("The version is %zu\n", trailer1.Version);
+        printf("The HeaderSize is %zu\n", trailer1.HeaderSize);
+
+        printf("%" PRIu32 "\n", trailer1.Version);
+
     }
     return stream;
 }
