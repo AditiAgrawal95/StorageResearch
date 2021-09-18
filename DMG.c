@@ -1,10 +1,20 @@
 // DMG.c : This file contains the 'main' function. Program execution begins and ends there.
 //
+//   Date:18-09-2021 
 
 #include <stdio.h>
 #include <string.h>
 #include "dmgParser.h"
-FILE* stream;
+
+#if defined(WIN32) || defined(__WIN32) ||defined(__WIN32__) || defined(__NT__) ||defined(_WIN64)    
+           #	include <Windows.h>
+           #define be64toh(x) _byteswap_uint64(x)    
+#elif __linux__
+      #	include <endian.h>
+#elif __unix__ // all unixes not caught above
+      #	include <endian.h>
+#endif
+
 FILE* readImageFile(FILE* stream)
 {
  
@@ -21,55 +31,55 @@ FILE* readImageFile(FILE* stream)
     return stream;
 }
 
-FILE* parseDMGTrailer(FILE* stream)
+FILE* parseDMGTrailer(FILE* stream, UDIFResourceFile* dmgTrailer)
 {
-    UDIFResourceFile trailer1;
     fseek(stream, 0L, SEEK_END);
-    // calculating the size of the file
-    fileSize = ftell(stream);
-    printf("The size of the file is %d\n", fileSize);
+
+    fileSize = ftell(stream);        // calculating the size of the file
+ 
 
     int resultOfParse = 0;
     int trailerSize = 512;
     resultOfParse = fseek(stream, fileSize - trailerSize, SEEK_SET);
     if (resultOfParse)
     {
-        printf("The The file didnt seek right to the trailer %d\n", resultOfParse);
+        printf("Couldn't seek to the desired position in the file.\n");
     }
     else
     {
-        printf("The file seeked to right position  %d and ftell is %d\n", resultOfParse,ftell(stream));
+        printf("Seeked to the beginning of Trailer.\n");
 
-        int bytesRead = fread(&trailer1, 512, 1, stream);
+        int bytesRead = fread(dmgTrailer, 512, 1, stream);
         printf("The bytes read %d\n", bytesRead);
-
-        printf("The magic signature is %s\n", trailer1.Signature);
-        printf("The xmloffset is %llu\n", trailer1.XMLOffset);
-        printf("The xmllength is %llu\n", trailer1.XMLLength);
-        printf("The version is %zu\n", trailer1.Version);
-        printf("The HeaderSize is %zu\n", trailer1.HeaderSize);
-
-        printf("%" PRIu32 "\n", trailer1.Version);
-
+        
     }
     return stream;
 }
-FILE* parseXMLFile(FILE* stream,uint64_t xmllen)
+FILE* readXMLOffset(FILE* stream, UDIFResourceFile* dmgTrailer, char** plist)
 {
-    char plistdata[5435576] = { " " };
-    fread(plistdata, xmllen, 1, stream);
-    // Call the parser
+    fseek(stream, be64toh(dmgTrailer->XMLOffset), SEEK_SET);     // Seek to the offset of xml.   
+    *plist = (char*)malloc(be64toh(dmgTrailer->XMLLength));      // Allocate memory to plist char array.
+    fread(*plist, be64toh(dmgTrailer->XMLLength), 1, stream);    // Read the xml.
+
+    printf("The xml is : %s", *plist);
     return stream;
+}
+
+void parseXML()
+{
+    // ToDo By Alex
 }
 
 int main()
 {
-
-	printf("Hello world");
     FILE* stream = NULL;
+    UDIFResourceFile dmgTrailer;
+    char * plist;
+
     stream = readImageFile(stream);
-    parseDMGTrailer(stream);
-    parseXMLFile(stream,xmllength);
+    parseDMGTrailer(stream, &dmgTrailer);      // reference of dmgTrailer is passed.
+    readXMLOffset(stream,&dmgTrailer,&plist);  //reference of dmgTrailer and plist is passed
+    parseXML();
 	return 0;
 }
 

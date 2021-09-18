@@ -1,12 +1,7 @@
 #pragma once
 #include <stdint.h>
 
-FILE* readImageFile(FILE*);  // To open the file
-FILE* parseDMGFile(FILE*);
-
 int fileSize = 0;
-uint8_t trailer[512];
-uint64_t xmllength;
 
 #pragma pack(1)
 typedef struct {
@@ -21,7 +16,7 @@ typedef struct {
     uint64_t RsrcForkLength;        // Resource fork length, if any
     uint32_t SegmentNumber;         // Usually 1, may be 0
     uint32_t SegmentCount;          // Usually 1, may be 0
-    uint32_t   SegmentID;             // 128-bit GUID identifier of segment (if SegmentNumber !=0)
+    uint8_t  SegmentID[16];         // 128-bit GUID identifier of segment (if SegmentNumber !=0)
 
     uint32_t DataChecksumType;      // Data fork 
     uint32_t DataChecksumSize;      //  Checksum Information
@@ -43,3 +38,12 @@ typedef struct {
     uint32_t reserved4;             // 0
 
 }UDIFResourceFile;
+#pragma pack()
+
+// Declarations of functions
+FILE* readImageFile(FILE*);  // To open the file
+FILE* parseDMGFile(FILE*, UDIFResourceFile*);
+FILE* readXMLOffset(FILE*, UDIFResourceFile*, char**);
+
+
+
