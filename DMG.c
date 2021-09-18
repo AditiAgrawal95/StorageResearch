@@ -80,6 +80,8 @@ int main()
     parseDMGTrailer(stream, &dmgTrailer);      // reference of dmgTrailer is passed.
     readXMLOffset(stream,&dmgTrailer,&plist);  //reference of dmgTrailer and plist is passed
     parseXML();
+	
+	free(plist);
 	return 0;
 }
 
