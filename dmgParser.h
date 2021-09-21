@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+//Structues copied from newosxbook.com
+//https://web.archive.org/web/20130317050948/http://newosxbook.com/DMG.html
 #pragma pack(1)
 typedef struct {
     char     Signature[4];          // Magic ('koly')
