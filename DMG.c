@@ -72,19 +72,39 @@ FILE* readXMLOffset(FILE* stream, UDIFResourceFile* dmgTrailer, char** plist)
     return stream;
 }
 
-//Copied from the article:
-//https://www.developer.com/database/libxml2-everything-you-need-in-an-xml-library/
-static void print_element_names(xmlNode * a_node)
+//A breadth-first search for an xmlNOde
+xmlNode* findNodeByText(xmlDoc *doc, xmlNode *root, char *searchText)
 {
-    xmlNode *cur_node = NULL;
+	//Search all siblings
+	for(xmlNode* sibling = root; sibling != NULL; sibling = sibling->next)
+	{
+		xmlChar *nodeText = NULL;
 
-    for (cur_node = a_node; cur_node; cur_node = cur_node->next) {
-        if (cur_node->type == XML_ELEMENT_NODE) {
-            printf("node type: Element, name: %s\n", cur_node->name);
-        }
+		if (sibling->type == XML_ELEMENT_NODE)
+		{
+			nodeText = xmlNodeListGetString(doc, sibling->children, 1);
+		
+			if (xmlStrEqual(nodeText, (const xmlChar *)searchText))
+				return sibling;
+		}
 
-        print_element_names(cur_node->children);
-    }
+		xmlFree(nodeText);
+	}
+
+	//Search all children
+	for (xmlNode* sibling = root; sibling != NULL; sibling = sibling->next)
+	{
+		if (sibling->type == XML_ELEMENT_NODE)
+		{
+			xmlNode* node = findNodeByText(doc, sibling->children, searchText);
+
+			if (node != NULL)
+				return node;
+		}
+	}
+
+	//Item not found in this branch
+	return NULL;
 }
 
 //Adapted from the article:
@@ -102,9 +122,16 @@ void parseXML(char* xmlStr)
         return;
     }
 
-
     root = xmlDocGetRootElement(doc);
-    print_element_names(root);
+
+    //Get the blkx node
+	xmlNode *blkx = findNodeByText(doc, root, "blkx");
+
+	if (blkx != NULL) {
+		xmlChar *nodeText = xmlNodeListGetString(doc, blkx->xmlChildrenNode, 1);
+		printf("%s: %s\n", blkx->name, nodeText);
+		xmlFree(nodeText);
+	}
 
     //Free any libXML2 memory
     xmlFreeDoc(doc);
