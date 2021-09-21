@@ -133,6 +133,42 @@ xmlNode* findNodeByText(xmlDoc *doc, xmlNode *root, char *searchText)
 	return NULL;
 }
 
+char* removeWhiteSpace(char* string)
+{
+	char* copy;
+	int length = strlen(string);
+	int wsCount = 0;
+	int newLength;
+
+	int strIndex = 0;
+	int copyIndex = 0;
+
+	//Count the number of white spaces
+	for (strIndex = 0; strIndex < length; strIndex++)
+	{
+		if (string[strIndex] == ' ' ||
+			string[strIndex] == '\t')
+			wsCount++;
+	}
+
+	//Allocate memory for a new string
+	newLength = length - wsCount;
+	copy = (char*) malloc(newLength * sizeof(char));
+
+	//Copy all non-whitespace characters
+	for (strIndex = 0; strIndex < length; strIndex++)
+	{
+		if (string[strIndex] != ' ' &&
+			string[strIndex] != '\t')
+		{
+			copy[copyIndex] = string[strIndex];
+			copyIndex++;
+		}
+	}
+
+	return copy;
+}
+
 int printDmgBlocks(xmlDoc *doc, xmlNode *blkxNode)
 {
 	xmlNode *array = findSiblingByType(blkxNode, "array");
@@ -183,8 +219,11 @@ int printDmgBlocks(xmlDoc *doc, xmlNode *blkxNode)
 		}
 
 		//Print the block data
-		const xmlChar *data = xmlNodeListGetString(doc, node->children, 1);
-		printf("Data:\n %s\n", data);
+		char *data = xmlNodeListGetString(doc, node->children, 1);
+		char *dataNoWs = removeWhiteSpace(data);
+		printf("Data:\n %s\n", dataNoWs);
+		free(data);
+		free(dataNoWs);
 
 		//Go to the next block
 		block = findSiblingByType(block, "dict");
