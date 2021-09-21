@@ -17,9 +17,8 @@
       #	include <endian.h>
 #endif
 
-FILE* readImageFile(FILE* stream)
+FILE* readImageFile(FILE* stream, char* dmg_path)
 {
-	char* dmg_path;
  #if defined(WIN32) || defined(__WIN32) ||defined(__WIN32__) || defined(__NT__) ||defined(_WIN64)   
     size_t bufferSize;
     errno_t e=_dupenv_s(&dmg_path, &bufferSize,"bigandsmall");
@@ -30,11 +29,11 @@ FILE* readImageFile(FILE* stream)
 
     if (stream != 0)
     {
-        printf("The file 'bigandsmall' was opened\n");
+        printf("The file '%s' was opened\n", dmg_path);
     }
     else
     {
-        printf("The file 'bigandsmall' was not opened\n");
+        printf("The file '%s' was not opened\n", dmg_path);
     }
     return stream;
 }
@@ -145,7 +144,12 @@ int main()
     UDIFResourceFile dmgTrailer;
     char *plist;
 
-    stream = readImageFile(stream);
+    if (argc < 2) {
+    	printf("Not Enough Arguments\nCorrect Usage: DMG <dmg_path>");
+    	return 1;
+    }
+
+    stream = readImageFile(stream, argv[1]);
     parseDMGTrailer(stream, &dmgTrailer);      // reference of dmgTrailer is passed.
     readXMLOffset(stream,&dmgTrailer,&plist);  //reference of dmgTrailer and plist is passed
     parseXML(plist);

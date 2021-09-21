@@ -23,5 +23,5 @@ Installation instructions for VisualStudio can be found [here](https://www.youtu
 On Linux run the Makefile to build the project. Then execute the DMG binary program.
 ```sh
 make
-./DMG
+./DMG <dmg_path>
 ```
