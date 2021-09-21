@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <libxml/tree.h>
 #include <libxml/parser.h>
 #include "dmgParser.h"
 
@@ -54,10 +55,10 @@ FILE* parseDMGTrailer(FILE* stream, UDIFResourceFile* dmgTrailer)
     }
     else
     {
-        printf("Seeked to the beginning of Trailer.\n");
+        // printf("Seeked to the beginning of Trailer.\n");
 
         int bytesRead = fread(dmgTrailer, 512, 1, stream);
-        printf("The bytes read %d\n", bytesRead);
+        // printf("The bytes read %d\n", bytesRead);
         
     }
     return stream;
@@ -68,13 +69,47 @@ FILE* readXMLOffset(FILE* stream, UDIFResourceFile* dmgTrailer, char** plist)
     *plist = (char*)malloc(be64toh(dmgTrailer->XMLLength));      // Allocate memory to plist char array.
     fread(*plist, be64toh(dmgTrailer->XMLLength), 1, stream);    // Read the xml.
 
-    printf("The xml is : %s", *plist);
+    //printf("The xml is : %s", *plist);
     return stream;
 }
 
-void parseXML()
+//Copied from the article:
+//https://www.developer.com/database/libxml2-everything-you-need-in-an-xml-library/
+static void print_element_names(xmlNode * a_node)
 {
-    // ToDo By Alex
+    xmlNode *cur_node = NULL;
+
+    for (cur_node = a_node; cur_node; cur_node = cur_node->next) {
+        if (cur_node->type == XML_ELEMENT_NODE) {
+            printf("node type: Element, name: %s\n", cur_node->name);
+        }
+
+        print_element_names(cur_node->children);
+    }
+}
+
+//Adapted from the article:
+//https://www.developer.com/database/libxml2-everything-you-need-in-an-xml-library/
+void parseXML(char* xmlStr)
+{
+	xmlDoc *doc = NULL;
+	xmlNode *root = NULL;
+
+	//Parse the given string into an XML file
+    doc = xmlParseDoc(xmlStr);
+
+    if (doc == NULL) {
+        printf("error: could not parse file %s\n", xmlStr);
+        return;
+    }
+
+
+    root = xmlDocGetRootElement(doc);
+    print_element_names(root);
+
+    //Free any libXML2 memory
+    xmlFreeDoc(doc);
+    xmlCleanupParser();
 }
 
 
@@ -108,12 +143,12 @@ int main()
 {
     FILE* stream = NULL;
     UDIFResourceFile dmgTrailer;
-    char * plist;
+    char *plist;
 
     stream = readImageFile(stream);
-    parseDMGTrailer(stream, &dmgTrailer);
-    readXMLOffset(stream,&dmgTrailer,&plist);
-    //parseXML();
+    parseDMGTrailer(stream, &dmgTrailer);      // reference of dmgTrailer is passed.
+    readXMLOffset(stream,&dmgTrailer,&plist);  //reference of dmgTrailer and plist is passed
+    parseXML(plist);
 	
        
     
