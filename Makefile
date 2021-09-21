@@ -1,5 +1,6 @@
 CC=gcc
-CFLAGS= -g -ggdb -I.
+INCLUDES= -I/usr/include/libxml2 -lxml2
+CFLAGS= -g -ggdb $(INCLUDES)
 DEPS = dmgParser.h
 OBJ = DMG.o
 

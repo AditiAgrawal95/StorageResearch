@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <libxml/parser.h>
 #include "dmgParser.h"
 
 #if defined(WIN32) || defined(__WIN32) ||defined(__WIN32__) || defined(__NT__) ||defined(_WIN64)    
