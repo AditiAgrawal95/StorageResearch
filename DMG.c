@@ -62,6 +62,7 @@ FILE* parseDMGTrailer(FILE* stream, UDIFResourceFile* dmgTrailer)
     }
     return stream;
 }
+
 FILE* readXMLOffset(FILE* stream, UDIFResourceFile* dmgTrailer, char** plist)
 {
     fseek(stream, be64toh(dmgTrailer->XMLOffset), SEEK_SET);     // Seek to the offset of xml.   
@@ -72,24 +73,49 @@ FILE* readXMLOffset(FILE* stream, UDIFResourceFile* dmgTrailer, char** plist)
     return stream;
 }
 
-//A breadth-first search for an xmlNOde
-xmlNode* findNodeByText(xmlDoc *doc, xmlNode *root, char *searchText)
-{
-	//Search all siblings
-	for(xmlNode* sibling = root; sibling != NULL; sibling = sibling->next)
-	{
-		xmlChar *nodeText = NULL;
 
+//Searches through the siblings of a node for the given type
+xmlNode* findSiblingByType(xmlNode *node, char* type)
+{
+	const xmlChar *nodeType = (const xmlChar*)type;
+
+	//Advance the pointer to its sibling
+	node = node->next;
+
+	while (node != NULL && !xmlStrEqual(node->name, nodeType))
+		node = node->next;
+
+	return node;
+}
+
+//Searches through the siblings of a node for the given content
+xmlNode* findSiblingByContent(xmlDoc *doc, xmlNode *node, char* content)
+{
+	const xmlChar *nodeContent = (const xmlChar*)content;
+
+	for(xmlNode* sibling = node->next; sibling != NULL; sibling = sibling->next)
+	{
 		if (sibling->type == XML_ELEMENT_NODE)
 		{
-			nodeText = xmlNodeListGetString(doc, sibling->children, 1);
+			const xmlChar *nodeText = xmlNodeListGetString(doc, sibling->children, 1);
 		
-			if (xmlStrEqual(nodeText, (const xmlChar *)searchText))
+			if (xmlStrEqual(nodeText, nodeContent))
 				return sibling;
 		}
 
-		xmlFree(nodeText);
 	}
+
+	return NULL;
+}
+
+//A breadth-first search for an xmlNode with the given contents
+xmlNode* findNodeByText(xmlDoc *doc, xmlNode *root, char *searchText)
+{
+	//Search all siblings
+	xmlNode* sibling = findSiblingByContent(doc, root, searchText);
+
+	if (sibling != NULL)
+		return sibling;
 
 	//Search all children
 	for (xmlNode* sibling = root; sibling != NULL; sibling = sibling->next)
@@ -105,6 +131,64 @@ xmlNode* findNodeByText(xmlDoc *doc, xmlNode *root, char *searchText)
 
 	//Item not found in this branch
 	return NULL;
+}
+
+int printDmgBlocks(xmlDoc *doc, xmlNode *blkxNode)
+{
+	xmlNode *array = findSiblingByType(blkxNode, "array");
+
+	if (array == NULL) {
+		printf("plist format is incorrect");
+		return 1;
+	}
+
+	xmlNode *block = findSiblingByType(array->children, "dict");
+
+	if (block == NULL) {
+		printf("plist format is incorrect");
+		return 1;
+	}
+
+	//Print all blocks
+	for (int i = 0; block != NULL; i++)
+	{
+		printf("\nBlock %i\n", i);
+
+		//Find the CFName key
+		xmlNode *node = findSiblingByContent(doc, block->children, "CFName");
+
+		if (node == NULL) {
+			printf("plist format is incorrect");
+			return 1;
+		}
+
+		//Find the CFName content node
+		node = findSiblingByType(node, "string");
+
+		if (node == NULL) {
+			printf("plist format is incorrect");
+			return 1;
+		}
+
+		//Print the block CFName
+		const xmlChar *name = xmlNodeListGetString(doc, node->children, 1);
+		printf("CFName: %s\n", name);
+
+		//Find the data node
+		node = findSiblingByType(node, "data");
+
+		if (node == NULL) {
+			printf("plist format is incorrect");
+			return 1;
+		}
+
+		//Print the block data
+		const xmlChar *data = xmlNodeListGetString(doc, node->children, 1);
+		printf("Data:\n %s\n", data);
+
+		//Go to the next block
+		block = findSiblingByType(block, "dict");
+	}
 }
 
 //Adapted from the article:
@@ -127,11 +211,13 @@ void parseXML(char* xmlStr)
     //Get the blkx node
 	xmlNode *blkx = findNodeByText(doc, root, "blkx");
 
-	if (blkx != NULL) {
-		xmlChar *nodeText = xmlNodeListGetString(doc, blkx->xmlChildrenNode, 1);
-		printf("%s: %s\n", blkx->name, nodeText);
-		xmlFree(nodeText);
+	if (blkx == NULL) {
+        printf("error: DMG plist is formatted incorrectly\n");
+        return;
 	}
+
+	//Print the plist blocks
+	printDmgBlocks(doc, blkx);
 
     //Free any libXML2 memory
     xmlFreeDoc(doc);
