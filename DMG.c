@@ -290,7 +290,7 @@ void readDataBlks(const char* data,FILE* stream)
 	//fseek(stream,compressedOffset,SEEK_SET);
 	
 }
-int main()
+int main(int argc, char** argv)
 {
     FILE* stream = NULL;
     UDIFResourceFile dmgTrailer;

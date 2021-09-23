@@ -86,7 +86,7 @@ typedef struct {
 #pragma pack()
 
 
-FILE* readImageFile(FILE*);  // To open the file
+FILE* readImageFile(FILE*, char* dmg_path);  // To open the file
 FILE* parseDMGFile(FILE*, UDIFResourceFile*);
 FILE* readXMLOffset(FILE*, UDIFResourceFile*, char**);
  void build_decoding_table();
