@@ -17,8 +17,14 @@
 
 FILE* readImageFile(FILE* stream)
 {
- 
-    stream = fopen("bigandsmall.dmg", "r");
+ #if defined(WIN32) || defined(__WIN32) ||defined(__WIN32__) || defined(__NT__) ||defined(_WIN64)
+    char* dmg_path;
+    size_t bufferSize;
+    errno_t e=_dupenv_s(&dmg_path, &bufferSize,"bigandsmall");
+     if (e || dmg_path == nullptr)
+         printf("The path is not found.");     
+#endif
+    stream = fopen(dmg_path, "r");
 
     if (stream != 0)
     {
@@ -70,6 +76,33 @@ void parseXML()
     // ToDo By Alex
 }
 
+
+BLKXTable* decodeDataBlk(const char* data)
+{
+    size_t decode_size = strlen(data);
+    printf("The size of data is : %i", decode_size);
+    unsigned char* decoded_data = base64_decode(data, decode_size, &decode_size);
+    printf("DEcode structure is %s\n", decoded_data);
+
+    BLKXTable* dataBlk = NULL;
+    dataBlk = (BLKXTable*)decoded_data;
+
+    // we can remove these print statements later. Keeping them for reference.
+    printf("Decoded Sector count  from dataBlk : %lu \n", be64toh(dataBlk->SectorCount));
+    printf("The value of version is: %u\n", be32toh(dataBlk->Version));
+    printf("The value of chunk is: %lu\n", be64toh(dataBlk->chunk[1].SectorNumber));
+
+    return dataBlk;
+}
+
+// This function will be called by printdmgBlocks
+void readDataBlks(const char* data,FILE* stream)
+{
+    BLKXTable* dataBlk = NULL;  
+    dataBlk = decodeDataBlk(data);
+	fseek(stream,compressedOffset,SEEK_SET);
+	
+}
 int main()
 {
     FILE* stream = NULL;
@@ -77,11 +110,14 @@ int main()
     char * plist;
 
     stream = readImageFile(stream);
-    parseDMGTrailer(stream, &dmgTrailer);      // reference of dmgTrailer is passed.
-    readXMLOffset(stream,&dmgTrailer,&plist);  //reference of dmgTrailer and plist is passed
-    parseXML();
+    parseDMGTrailer(stream, &dmgTrailer);
+    readXMLOffset(stream,&dmgTrailer,&plist);
+    //parseXML();
 	
-	free(plist);
+       
+    
+
+    free(plist);
 	return 0;
 }
 

@@ -1,7 +1,8 @@
 #pragma once
+#include <stdio.h>
 #include <stdint.h>
-
-int fileSize = 0;
+#include <stdlib.h>
+#include <string.h>
 
 #pragma pack(1)
 typedef struct {
@@ -38,12 +39,59 @@ typedef struct {
     uint32_t reserved4;             // 0
 
 }UDIFResourceFile;
+
+typedef struct {
+    uint32_t ChecksumType;          // Master
+    uint32_t ChecksumSize;          //  Checksum information
+    uint32_t Checksum[32];          //128 
+}UDIFChecksum;
+
+
+// Where each  BLXKRunEntry is defined as follows:
+
+typedef struct {
+    uint32_t EntryType;         // Compression type used or entry type (see next table)
+    uint32_t Comment;           // "+beg" or "+end", if EntryType is comment (0x7FFFFFFE). Else reserved.
+    uint64_t SectorNumber;      // Start sector of this chunk
+    uint64_t SectorCount;       // Number of sectors in this chunk
+    uint64_t CompressedOffset;  // Start of chunk in data fork
+    uint64_t CompressedLength;  // Count of bytes of chunk, in data fork
+}BLKXChunkEntry;
+
+typedef struct {
+    uint32_t Signature;  
+   // uint32_t num;// Magic ('mish')
+    uint32_t Version;            // Current version is 1
+    uint64_t SectorNumber;       // Starting disk sector in this blkx descriptor
+    uint64_t SectorCount;        // Number of disk sectors in this blkx descriptor
+
+    uint64_t DataOffset;
+    uint32_t BuffersNeeded;
+    uint32_t BlockDescriptors;   // Number of descriptors
+
+    uint32_t reserved1;
+    uint32_t reserved2;
+    uint32_t reserved3;
+    uint32_t reserved4;
+    uint32_t reserved5;
+    uint32_t reserved6;
+
+    UDIFChecksum checksum;
+
+    uint32_t NumberOfBlockChunks;
+    BLKXChunkEntry chunk[0];
+}BLKXTable;
 #pragma pack()
 
-// Declarations of functions
+
 FILE* readImageFile(FILE*);  // To open the file
 FILE* parseDMGFile(FILE*, UDIFResourceFile*);
 FILE* readXMLOffset(FILE*, UDIFResourceFile*, char**);
-
+ void build_decoding_table();
+ void base64_cleanup();
+ char* base64_encode(const char*,size_t ,size_t* );
+unsigned char* base64_decode(const char* ,size_t ,size_t* );
+BLKXTable* decodeDataBlk(const char*);
+readDataBlks(const char*,FILE*);
 
 
