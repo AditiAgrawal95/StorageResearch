@@ -17,8 +17,8 @@
 
 FILE* readImageFile(FILE* stream)
 {
- #if defined(WIN32) || defined(__WIN32) ||defined(__WIN32__) || defined(__NT__) ||defined(_WIN64)
-    char* dmg_path;
+	char* dmg_path;
+ #if defined(WIN32) || defined(__WIN32) ||defined(__WIN32__) || defined(__NT__) ||defined(_WIN64)   
     size_t bufferSize;
     errno_t e=_dupenv_s(&dmg_path, &bufferSize,"bigandsmall");
      if (e || dmg_path == nullptr)
@@ -41,7 +41,7 @@ FILE* parseDMGTrailer(FILE* stream, UDIFResourceFile* dmgTrailer)
 {
     fseek(stream, 0L, SEEK_END);
 
-    fileSize = ftell(stream);        // calculating the size of the file
+    int fileSize = ftell(stream);        // calculating the size of the file
  
 
     int resultOfParse = 0;
@@ -100,7 +100,7 @@ void readDataBlks(const char* data,FILE* stream)
 {
     BLKXTable* dataBlk = NULL;  
     dataBlk = decodeDataBlk(data);
-	fseek(stream,compressedOffset,SEEK_SET);
+	//fseek(stream,compressedOffset,SEEK_SET);
 	
 }
 int main()

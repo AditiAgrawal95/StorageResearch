@@ -92,6 +92,6 @@ FILE* readXMLOffset(FILE*, UDIFResourceFile*, char**);
  char* base64_encode(const char*,size_t ,size_t* );
 unsigned char* base64_decode(const char* ,size_t ,size_t* );
 BLKXTable* decodeDataBlk(const char*);
-readDataBlks(const char*,FILE*);
+void readDataBlks(const char*,FILE*);
 
 
