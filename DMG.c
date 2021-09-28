@@ -69,6 +69,48 @@ FILE* readXMLOffset(FILE* stream, UDIFResourceFile* dmgTrailer, char** plist)
     return stream;
 }
 
+BLKXTable* decodeDataBlk(const char* data)
+{
+    size_t decode_size = strlen(data);
+    printf("The size of data is : %i\n", decode_size);
+    unsigned char* decoded_data = base64_decode(data, decode_size, &decode_size);
+    printf("DEcode structure is %s\n", decoded_data);
+
+    BLKXTable* dataBlk = NULL;
+    dataBlk = (BLKXTable*)decoded_data;
+
+    // we can remove these print statements later. Keeping them for reference.
+    printf("Decoded Sector count  from dataBlk : %lu \n", be64toh(dataBlk->SectorCount));
+    printf("The value of version is: %u\n", be32toh(dataBlk->Version));
+    printf("The value of chunk is: %lu\n", be64toh(dataBlk->chunk[1].SectorNumber));
+	printf("Decoded Sector count  from dataBlk : %lu \n", be64toh(dataBlk->SectorCount));
+
+    printf("The value of version is: %u\n", be32toh(dataBlk->Version));
+    printf("The value of chunk is: %lu\n", be64toh(dataBlk->chunk[1].CompressedOffset));
+    printf("Decoded Sector count  from dataBlk : %u \n", be32toh(dataBlk->NumberOfBlockChunks));
+    printf("The value of chunk entry type is: %x\n", be32toh(dataBlk->chunk[0].EntryType));
+    printf("The value of chunk entry type is: %x\n", be32toh(dataBlk->chunk[1].EntryType));
+
+    return dataBlk;
+}
+// This function will be called by printdmgBlocks
+void readDataBlks(BLKXTable* dataBlk,FILE* stream)
+{
+    int sectorSize = 512;
+    uint8_t* compressedBlk = NULL; 
+    fseek(stream, sectorSize * be64toh(dataBlk->SectorNumber), SEEK_SET);  //Seeking to the start od the data block
+    printf("The offset  is %lu:", be64toh(dataBlk->chunk[0].CompressedOffset));
+
+    fseek(stream, be64toh(dataBlk->chunk[0].CompressedOffset)*sectorSize , SEEK_CUR);
+    for (int noOfChunks = 0; noOfChunks < (be32toh(dataBlk->NumberOfBlockChunks)); noOfChunks++)
+    {
+        printf("The offset length is %lu:", be64toh(dataBlk->chunk[noOfChunks].CompressedLength));
+        compressedBlk = (uint8_t*)malloc(be64toh(dataBlk->chunk[noOfChunks].CompressedLength));
+        size_t result=fread(compressedBlk, be64toh(dataBlk->chunk[noOfChunks].CompressedLength) , 1, stream);
+        printf("The result of fread is %d", result);
+        //call decompression function by Annirudh.
+    }	
+}
 
 //Searches through the siblings of a node for the given type
 xmlNode* findSiblingByType(xmlNode *node, char* type)
@@ -143,7 +185,9 @@ char* removeWhiteSpace(char* string)
 	for (strIndex = 0; strIndex < length; strIndex++)
 	{
 		if (string[strIndex] == ' ' ||
-			string[strIndex] == '\t')
+			string[strIndex] == '\t'||
+			string[strIndex] == '\n'||
+			string[strIndex] == '\r')
 			wsCount++;
 	}
 
@@ -155,7 +199,9 @@ char* removeWhiteSpace(char* string)
 	for (strIndex = 0; strIndex < length; strIndex++)
 	{
 		if (string[strIndex] != ' ' &&
-			string[strIndex] != '\t')
+			string[strIndex] != '\t'&&
+			string[strIndex] != '\n'&&
+			string[strIndex] != '\r')
 		{
 			copy[copyIndex] = string[strIndex];
 			copyIndex++;
@@ -165,7 +211,7 @@ char* removeWhiteSpace(char* string)
 	return copy;
 }
 
-int printDmgBlocks(xmlDoc *doc, xmlNode *blkxNode)
+int printDmgBlocks(xmlDoc *doc, xmlNode *blkxNode,FILE* stream)
 {
 	xmlNode *array = findSiblingByType(blkxNode, "array");
 
@@ -218,6 +264,9 @@ int printDmgBlocks(xmlDoc *doc, xmlNode *blkxNode)
 		char *data = xmlNodeListGetString(doc, node->children, 1);
 		char *dataNoWs = removeWhiteSpace(data);
 		printf("Data:\n %s\n", dataNoWs);
+		BLKXTable* dataBlk = NULL; 
+		dataBlk=decodeDataBlk(dataNoWs);   // decode the data block.
+        readDataBlks(dataBlk, stream);     // loop through the chunks to decompress each.
 		free(data);
 		free(dataNoWs);
 
@@ -228,7 +277,7 @@ int printDmgBlocks(xmlDoc *doc, xmlNode *blkxNode)
 
 //Adapted from the article:
 //https://www.developer.com/database/libxml2-everything-you-need-in-an-xml-library/
-void parseXML(char* xmlStr)
+void parseXML(char* xmlStr,FILE* stream)
 {
 	xmlDoc *doc = NULL;
 	xmlNode *root = NULL;
@@ -252,40 +301,13 @@ void parseXML(char* xmlStr)
 	}
 
 	//Print the plist blocks
-	printDmgBlocks(doc, blkx);
+	printDmgBlocks(doc, blkx,stream);
 
     //Free any libXML2 memory
     xmlFreeDoc(doc);
     xmlCleanupParser();
 }
 
-
-BLKXTable* decodeDataBlk(const char* data)
-{
-    size_t decode_size = strlen(data);
-    printf("The size of data is : %i", decode_size);
-    unsigned char* decoded_data = base64_decode(data, decode_size, &decode_size);
-    printf("DEcode structure is %s\n", decoded_data);
-
-    BLKXTable* dataBlk = NULL;
-    dataBlk = (BLKXTable*)decoded_data;
-
-    // we can remove these print statements later. Keeping them for reference.
-    printf("Decoded Sector count  from dataBlk : %lu \n", be64toh(dataBlk->SectorCount));
-    printf("The value of version is: %u\n", be32toh(dataBlk->Version));
-    printf("The value of chunk is: %lu\n", be64toh(dataBlk->chunk[1].SectorNumber));
-
-    return dataBlk;
-}
-
-// This function will be called by printdmgBlocks
-void readDataBlks(const char* data,FILE* stream)
-{
-    BLKXTable* dataBlk = NULL;  
-    dataBlk = decodeDataBlk(data);
-	//fseek(stream,compressedOffset,SEEK_SET);
-	
-}
 int main(int argc, char** argv)
 {
     FILE* stream = NULL;
@@ -300,7 +322,7 @@ int main(int argc, char** argv)
     stream = readImageFile(stream, argv[1]);
     parseDMGTrailer(stream, &dmgTrailer);      // reference of dmgTrailer is passed.
     readXMLOffset(stream,&dmgTrailer,&plist);  //reference of dmgTrailer and plist is passed
-    parseXML(plist);
+    parseXML(plist,stream);
 	
        
     
