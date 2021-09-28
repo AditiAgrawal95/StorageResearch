@@ -196,7 +196,8 @@ char* removeWhiteSpace(char* string)
 	}
 
 	//Allocate memory for a new string
-	newLength = length - wsCount;
+	//Add an extra byte for the null terminator character
+	newLength = length - wsCount + 1;
 	copy = (char*) malloc(newLength * sizeof(char));
 
 	//Copy all non-whitespace characters
@@ -267,7 +268,7 @@ int printDmgBlocks(xmlDoc *doc, xmlNode *blkxNode,FILE* stream)
 		//Print the block data
 		char *data = xmlNodeListGetString(doc, node->children, 1);
 		char *dataNoWs = removeWhiteSpace(data);
-		printf("Data:\n %s\n", dataNoWs);
+		printf("Data:\n%s\n", dataNoWs);
 		BLKXTable* dataBlk = NULL; 
 		dataBlk=decodeDataBlk(dataNoWs);   // decode the data block.
         readDataBlks(dataBlk, stream);     // loop through the chunks to decompress each.
