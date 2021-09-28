@@ -40,14 +40,10 @@ FILE* readImageFile(FILE* stream, char* dmg_path)
 
 FILE* parseDMGTrailer(FILE* stream, UDIFResourceFile* dmgTrailer)
 {
-    fseek(stream, 0L, SEEK_END);
+    int trailerSize = 512, resultOfParse = 0;
 
-    int fileSize = ftell(stream);        // calculating the size of the file
- 
+    resultOfParse = fseek(stream, -trailerSize, SEEK_END);
 
-    int resultOfParse = 0;
-    int trailerSize = 512;
-    resultOfParse = fseek(stream, fileSize - trailerSize, SEEK_SET);
     if (resultOfParse)
     {
         printf("Couldn't seek to the desired position in the file.\n");
@@ -56,7 +52,7 @@ FILE* parseDMGTrailer(FILE* stream, UDIFResourceFile* dmgTrailer)
     {
         // printf("Seeked to the beginning of Trailer.\n");
 
-        int bytesRead = fread(dmgTrailer, 512, 1, stream);
+        int bytesRead = fread(dmgTrailer, trailerSize, 1, stream);
         // printf("The bytes read %d\n", bytesRead);
         
     }

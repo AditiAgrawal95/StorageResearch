@@ -2,7 +2,7 @@ CC=gcc
 INCLUDES= -I/usr/include/libxml2 -lxml2
 CFLAGS= -g -ggdb $(INCLUDES)
 DEPS = dmgParser.h
-OBJ = DMG.o
+OBJ = DMG.o base64.o
 
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
