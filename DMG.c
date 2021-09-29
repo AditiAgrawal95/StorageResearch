@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <zlib.h>
 #include <libxml/tree.h>
 #include <libxml/parser.h>
 #include "dmgParser.h"
@@ -16,6 +17,9 @@
 #elif __unix__ // all unixes not caught above
       #	include <endian.h>
 #endif
+
+#define INFLATE_BUF_LEN 4096
+#define ENTRY_TYPE_ZLIB	0x80000005
 
 FILE* readImageFile(FILE* stream, char* dmg_path)
 {
@@ -40,12 +44,9 @@ FILE* readImageFile(FILE* stream, char* dmg_path)
 
 FILE* parseDMGTrailer(FILE* stream, UDIFResourceFile* dmgTrailer)
 {
-    int trailerSize = 512, resultOfParse = 0;
+    int trailerSize = 512;
 
-    resultOfParse = fseek(stream, -trailerSize, SEEK_END);
-
-    if (resultOfParse)
-    {
+    if (fseek(stream, -trailerSize, SEEK_END)) {
         printf("Couldn't seek to the desired position in the file.\n");
     }
     else
@@ -72,7 +73,7 @@ FILE* readXMLOffset(FILE* stream, UDIFResourceFile* dmgTrailer, char** plist)
 BLKXTable* decodeDataBlk(const char* data)
 {
     size_t decode_size = strlen(data);
-    printf("The size of data is : %i\n", decode_size);
+    printf("The size of data is : %lu\n", decode_size);
     unsigned char* decoded_data = base64_decode(data, decode_size, &decode_size);
     printf("DEcode structure is %s\n", decoded_data);
 
@@ -80,35 +81,118 @@ BLKXTable* decodeDataBlk(const char* data)
     dataBlk = (BLKXTable*)decoded_data;
 
     // we can remove these print statements later. Keeping them for reference.
-    printf("Decoded Sector count  from dataBlk : %lu \n", be64toh(dataBlk->SectorCount));
-    printf("The value of version is: %u\n", be32toh(dataBlk->Version));
-    printf("The value of chunk is: %lu\n", be64toh(dataBlk->chunk[1].SectorNumber));
-	printf("Decoded Sector count  from dataBlk : %lu \n", be64toh(dataBlk->SectorCount));
+    printf("Version: %u\n", be32toh(dataBlk->Version));
+    printf("Sector count: %lu \n", be64toh(dataBlk->SectorCount));
+    printf("No. Block Chunks: %u \n", be32toh(dataBlk->NumberOfBlockChunks));
 
-    printf("The value of version is: %u\n", be32toh(dataBlk->Version));
-    printf("The value of chunk is: %lu\n", be64toh(dataBlk->chunk[1].CompressedOffset));
-    printf("Decoded Sector count  from dataBlk : %u \n", be32toh(dataBlk->NumberOfBlockChunks));
-    printf("The value of chunk entry type is: %x\n", be32toh(dataBlk->chunk[0].EntryType));
-    printf("The value of chunk entry type is: %x\n", be32toh(dataBlk->chunk[1].EntryType));
+    printf("BLKXChunkEntry :\n");
+    printf("BLK0 Entry type: %x\n", be32toh(dataBlk->chunk[0].EntryType));
+    printf("BLK0 SectorNumber: %lu\n", be64toh(dataBlk->chunk[0].SectorNumber));
+    printf("BLK0 Sector Count: %lu\n", be64toh(dataBlk->chunk[0].SectorCount));
+    printf("BLK0 Compressed Offset: %lu\n", be64toh(dataBlk->chunk[0].CompressedOffset));
+    printf("BLK0 Compressed Length: %lu\n", be64toh(dataBlk->chunk[0].CompressedLength));
+    printf("\nBLK1 Entry type: %x\n", be32toh(dataBlk->chunk[1].EntryType));
+    printf("BLK1 SectorNumber: %lu\n", be64toh(dataBlk->chunk[1].SectorNumber));
+    printf("BLK1 Sector Count: %lu\n", be64toh(dataBlk->chunk[1].SectorCount));
+    printf("BLK1 Compressed Offset: %lu\n", be64toh(dataBlk->chunk[1].CompressedOffset));
+    printf("BLK1 Compressed Length: %lu\n", be64toh(dataBlk->chunk[1].CompressedLength));
 
     return dataBlk;
 }
-// This function will be called by printdmgBlocks
-void readDataBlks(BLKXTable* dataBlk,FILE* stream)
-{
-    int sectorSize = 512;
-    uint8_t* compressedBlk = NULL; 
-    fseek(stream, sectorSize * be64toh(dataBlk->SectorNumber), SEEK_SET);  //Seeking to the start od the data block
-    printf("The offset  is %lu:", be64toh(dataBlk->chunk[0].CompressedOffset));
 
-    fseek(stream, be64toh(dataBlk->chunk[0].CompressedOffset)*sectorSize , SEEK_CUR);
-    for (int noOfChunks = 0; noOfChunks < (be32toh(dataBlk->NumberOfBlockChunks)); noOfChunks++)
-    {
-        printf("The offset length is %lu:", be64toh(dataBlk->chunk[noOfChunks].CompressedLength));
-        compressedBlk = (uint8_t*)malloc(be64toh(dataBlk->chunk[noOfChunks].CompressedLength));
-        size_t result=fread(compressedBlk, be64toh(dataBlk->chunk[noOfChunks].CompressedLength) , 1, stream);
-        printf("The result of fread is %d", result);
-        //call decompression function by Annirudh.
+int decompress_to_file(char *compressed, unsigned long comp_size, int block_no)
+{
+        z_stream inflate_stream = {0};
+        FILE *output_buf = NULL;
+        char decompressed[INFLATE_BUF_LEN] = {0}, filename[16] = {0};
+        int ret = 0;
+
+        snprintf(filename, sizeof(filename), "decompressed%d", block_no);
+
+        inflate_stream.zalloc = Z_NULL;
+        inflate_stream.zfree  = Z_NULL;
+        inflate_stream.opaque = Z_NULL;
+
+        inflate_stream.next_in  = compressed;
+        inflate_stream.avail_in = comp_size;
+
+        if ( (ret = inflateInit(&inflate_stream)) != Z_OK ) {
+                printf("Error Initializing Inflate! [Ecode - %d]\n", ret);
+                return -1;
+        }
+
+        inflate_stream.next_out  = decompressed;
+        inflate_stream.avail_out = INFLATE_BUF_LEN;
+
+        if ((output_buf = fopen(filename, "a")) == NULL) {
+                printf("Unable to create file decompressed!\n");
+                ret = -1;
+                goto inflate_end;
+        }
+
+	printf("avail_in - %u, avail_out - %u\n", inflate_stream.avail_in, inflate_stream.avail_out);
+
+        while ((ret = inflate(&inflate_stream,  Z_FINISH )) != Z_STREAM_END) {
+                printf("Did not reach end. ret = %d, total out - %lu avail_in - %u (ZOK- %d, buf error - %d)\n", ret, inflate_stream.total_out, inflate_stream.avail_in, Z_OK, Z_BUF_ERROR);
+                if ((ret == Z_OK || ret == Z_BUF_ERROR ) && inflate_stream.avail_out == 0) {
+                        if (fwrite(decompressed, 1, INFLATE_BUF_LEN, output_buf) == 0) {
+                                printf("Error Writing to output file!\n");
+                                goto close;
+                        }
+                        memset(decompressed, 0, sizeof(decompressed));
+                        inflate_stream.next_out  = decompressed;
+                        inflate_stream.avail_out = INFLATE_BUF_LEN;
+                } else {
+			printf("Error Inflating! [Code - %d]\n", ret);
+			goto close;
+		}
+	}
+
+	if (fwrite(decompressed, 1, INFLATE_BUF_LEN, output_buf) == 0)
+		printf("Error Writing to output file!\n");
+	else
+		printf("Decompressed Successfully to file 'decompressed' size - %lu\n", inflate_stream.total_out);
+close:
+	fclose(output_buf);
+inflate_end:
+	inflateEnd (&inflate_stream);
+	return ret;
+}
+
+void dump_hex( char *stream, unsigned long size )
+{
+        int i;
+
+        printf("\n");
+        for(i = 0; i < size; ++i) {
+                if (i%16==0)
+                        printf("\n");
+                printf("%02x ", stream[i]);
+        }
+        printf("\n");
+}
+
+// This function will be called by printdmgBlocks
+void readDataBlks(BLKXTable* dataBlk,FILE* stream, int block_no)
+{
+	int sectorSize = 512;
+	uint8_t* compressedBlk = NULL; 
+	fseek(stream, sectorSize * be64toh(dataBlk->SectorNumber), SEEK_SET);  //Seeking to the start od the data block
+	printf("\nThe offset  is %lu\n", be64toh(dataBlk->chunk[0].CompressedOffset));
+
+	fseek(stream, be64toh(dataBlk->chunk[0].CompressedOffset)*sectorSize , SEEK_CUR);
+	for (int noOfChunks = 0; noOfChunks < (be32toh(dataBlk->NumberOfBlockChunks)); noOfChunks++)
+	{
+		printf("The offset length is %lu:", be64toh(dataBlk->chunk[noOfChunks].CompressedLength));
+		compressedBlk = (uint8_t*)malloc(be64toh(dataBlk->chunk[noOfChunks].CompressedLength));
+		size_t result=fread(compressedBlk, 1, be64toh(dataBlk->chunk[noOfChunks].CompressedLength), stream);
+		printf("The result of fread is %lu\n", result);
+		dump_hex(compressedBlk, result);			
+		if (be32toh(dataBlk->chunk[noOfChunks].EntryType) != ENTRY_TYPE_ZLIB) {
+			printf("Ignoring Non zlib compression for now\n");
+		} else if (decompress_to_file(compressedBlk, result, block_no) < 0) {
+			printf("Failed to decompress block\n");
+		}	
     }	
 }
 
@@ -267,7 +351,7 @@ int printDmgBlocks(xmlDoc *doc, xmlNode *blkxNode,FILE* stream)
 		printf("Data:\n%s\n", dataNoWs);
 		BLKXTable* dataBlk = NULL; 
 		dataBlk=decodeDataBlk(dataNoWs);   // decode the data block.
-        readDataBlks(dataBlk, stream);     // loop through the chunks to decompress each.
+		readDataBlks(dataBlk, stream, i);     // loop through the chunks to decompress each.
 		free(data);
 		free(dataNoWs);
 
@@ -284,29 +368,29 @@ void parseXML(char* xmlStr,FILE* stream)
 	xmlNode *root = NULL;
 
 	//Parse the given string into an XML file
-    doc = xmlParseDoc(xmlStr);
+	doc = xmlParseDoc(xmlStr);
 
-    if (doc == NULL) {
-        printf("error: could not parse file %s\n", xmlStr);
-        return;
-    }
+	if (doc == NULL) {
+		printf("error: could not parse file %s\n", xmlStr);
+		return;
+	}
 
-    root = xmlDocGetRootElement(doc);
+	root = xmlDocGetRootElement(doc);
 
-    //Get the blkx node
+	//Get the blkx node
 	xmlNode *blkx = findNodeByText(doc, root, "blkx");
 
 	if (blkx == NULL) {
-        printf("error: DMG plist is formatted incorrectly\n");
-        return;
+		printf("error: DMG plist is formatted incorrectly\n");
+		return;
 	}
 
 	//Print the plist blocks
 	printDmgBlocks(doc, blkx,stream);
 
-    //Free any libXML2 memory
-    xmlFreeDoc(doc);
-    xmlCleanupParser();
+	//Free any libXML2 memory
+	xmlFreeDoc(doc);
+	xmlCleanupParser();
 }
 
 int main(int argc, char** argv)
@@ -316,7 +400,7 @@ int main(int argc, char** argv)
     char *plist;
 
     if (argc < 2) {
-    	printf("Not Enough Arguments\nCorrect Usage: DMG <dmg_path>");
+    	printf("Not Enough Arguments\nCorrect Usage: DMG <dmg_path>\n");
     	return 1;
     }
 
