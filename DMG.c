@@ -105,6 +105,7 @@ int decompress_to_file(char *compressed, unsigned long comp_size, int block_no)
         z_stream inflate_stream = {0};
         FILE *output_buf = NULL;
         char decompressed[INFLATE_BUF_LEN] = {0}, filename[16] = {0};
+	unsigned long remaining = 0;
         int ret = 0;
 
         snprintf(filename, sizeof(filename), "decompressed%d", block_no);
@@ -130,10 +131,7 @@ int decompress_to_file(char *compressed, unsigned long comp_size, int block_no)
                 goto inflate_end;
         }
 
-	printf("avail_in - %u, avail_out - %u\n", inflate_stream.avail_in, inflate_stream.avail_out);
-
         while ((ret = inflate(&inflate_stream,  Z_FINISH )) != Z_STREAM_END) {
-                printf("Did not reach end. ret = %d, total out - %lu avail_in - %u (ZOK- %d, buf error - %d)\n", ret, inflate_stream.total_out, inflate_stream.avail_in, Z_OK, Z_BUF_ERROR);
                 if ((ret == Z_OK || ret == Z_BUF_ERROR ) && inflate_stream.avail_out == 0) {
                         if (fwrite(decompressed, 1, INFLATE_BUF_LEN, output_buf) == 0) {
                                 printf("Error Writing to output file!\n");
@@ -148,10 +146,16 @@ int decompress_to_file(char *compressed, unsigned long comp_size, int block_no)
 		}
 	}
 
+	if ( inflate_stream.total_out < inflate_stream.avail_out) {
+		remaining = inflate_stream.total_out;
+	} else {
+		remaining = (inflate_stream.total_out % INFLATE_BUF_LEN);
+	}
+
 	if (fwrite(decompressed, 1, INFLATE_BUF_LEN, output_buf) == 0)
 		printf("Error Writing to output file!\n");
 	else
-		printf("Decompressed Successfully to file 'decompressed' size - %lu\n", inflate_stream.total_out);
+		printf("Decompressed Successfully to file '%s' [Dsize: %lu][Fsize: %lu]\n", filename, inflate_stream.total_out, ftell(output_buf));
 close:
 	fclose(output_buf);
 inflate_end:
@@ -159,40 +163,31 @@ inflate_end:
 	return ret;
 }
 
-void dump_hex( char *stream, unsigned long size )
-{
-        int i;
-
-        printf("\n");
-        for(i = 0; i < size; ++i) {
-                if (i%16==0)
-                        printf("\n");
-                printf("%02x ", stream[i]);
-        }
-        printf("\n");
-}
-
+    
 // This function will be called by printdmgBlocks
 void readDataBlks(BLKXTable* dataBlk,FILE* stream, int block_no)
 {
 	int sectorSize = 512;
 	uint8_t* compressedBlk = NULL; 
-	fseek(stream, sectorSize * be64toh(dataBlk->SectorNumber), SEEK_SET);  //Seeking to the start od the data block
 	printf("\nThe offset  is %lu\n", be64toh(dataBlk->chunk[0].CompressedOffset));
 
-	fseek(stream, be64toh(dataBlk->chunk[0].CompressedOffset)*sectorSize , SEEK_CUR);
-	for (int noOfChunks = 0; noOfChunks < (be32toh(dataBlk->NumberOfBlockChunks)); noOfChunks++)
-	{
-		printf("The offset length is %lu:", be64toh(dataBlk->chunk[noOfChunks].CompressedLength));
-		compressedBlk = (uint8_t*)malloc(be64toh(dataBlk->chunk[noOfChunks].CompressedLength));
-		size_t result=fread(compressedBlk, 1, be64toh(dataBlk->chunk[noOfChunks].CompressedLength), stream);
-		printf("The result of fread is %lu\n", result);
-		dump_hex(compressedBlk, result);			
-		if (be32toh(dataBlk->chunk[noOfChunks].EntryType) != ENTRY_TYPE_ZLIB) {
-			printf("Ignoring Non zlib compression for now\n");
-		} else if (decompress_to_file(compressedBlk, result, block_no) < 0) {
-			printf("Failed to decompress block\n");
-		}	
+    for (int noOfChunks = 0; noOfChunks < (be32toh(dataBlk->NumberOfBlockChunks)); noOfChunks++)
+    {
+	    fseek(stream, be64toh(dataBlk->chunk[noOfChunks].CompressedOffset), SEEK_SET);
+
+	    printf("The value of chunk is: %lu\n", be64toh(dataBlk->chunk[noOfChunks].CompressedOffset));
+	    printf("The offset length is %lu:", be64toh(dataBlk->chunk[noOfChunks].CompressedLength));
+
+	    compressedBlk = (uint8_t*)malloc(be64toh(dataBlk->chunk[noOfChunks].CompressedLength));
+	    size_t result=fread(compressedBlk, 1, be64toh(dataBlk->chunk[noOfChunks].CompressedLength), stream);
+
+	    printf("The result of fread is %lu", result);
+	    printf("The value of chunk entry type is: %x\n", be32toh(dataBlk->chunk[noOfChunks].EntryType));
+	    if (be32toh(dataBlk->chunk[noOfChunks].EntryType) != ENTRY_TYPE_ZLIB) {
+		    printf("Ignoring Non zlib compression for now\n");
+	    } else if (decompress_to_file(compressedBlk, result, block_no) < 0) {
+		    printf("Failed to decompress block\n");
+	    }	
     }	
 }
 
@@ -293,6 +288,7 @@ char* removeWhiteSpace(char* string)
 		}
 	}
 
+	copy[copyIndex] = '\0';
 	return copy;
 }
 
@@ -348,7 +344,6 @@ int printDmgBlocks(xmlDoc *doc, xmlNode *blkxNode,FILE* stream)
 		//Print the block data
 		char *data = xmlNodeListGetString(doc, node->children, 1);
 		char *dataNoWs = removeWhiteSpace(data);
-		printf("Data:\n%s\n", dataNoWs);
 		BLKXTable* dataBlk = NULL; 
 		dataBlk=decodeDataBlk(dataNoWs);   // decode the data block.
 		readDataBlks(dataBlk, stream, i);     // loop through the chunks to decompress each.
@@ -409,11 +404,8 @@ int main(int argc, char** argv)
     readXMLOffset(stream,&dmgTrailer,&plist);  //reference of dmgTrailer and plist is passed
     parseXML(plist,stream);
 	
-       
-    
-
     free(plist);
-	return 0;
+    return 0;
 }
 
 
