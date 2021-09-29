@@ -276,7 +276,7 @@ char* removeWhiteSpace(char* string)
 	copy = (char*) malloc(newLength * sizeof(char));
 
 	//Copy all non-whitespace characters
-	for (strIndex = 0; strIndex < length; strIndex++)
+	for (strIndex = 0; strIndex < newLength; strIndex++)
 	{
 		if (string[strIndex] != ' ' &&
 			string[strIndex] != '\t'&&
@@ -288,7 +288,6 @@ char* removeWhiteSpace(char* string)
 		}
 	}
 
-	copy[copyIndex] = '\0';
 	return copy;
 }
 
