@@ -82,21 +82,10 @@ BLKXTable* decodeDataBlk(const char* data)
 
     BLKXTable* dataBlk = NULL;
     dataBlk = (BLKXTable*)decoded_data;
-
-    // we can remove these print statements later. Keeping them for reference.
-    printf("Decoded Sector count  from dataBlk : %lu \n", be64toh(dataBlk->SectorCount));
-    printf("The value of version is: %u\n", be32toh(dataBlk->Version));
-    printf("The value of chunk is: %lu\n", be64toh(dataBlk->chunk[1].SectorNumber));
-	printf("Decoded Sector count  from dataBlk : %lu \n", be64toh(dataBlk->SectorCount));
-
-    printf("The value of version is: %u\n", be32toh(dataBlk->Version));
-    printf("The value of chunk is: %lu\n", be64toh(dataBlk->chunk[1].CompressedOffset));
-    printf("Decoded Sector count  from dataBlk : %u \n", be32toh(dataBlk->NumberOfBlockChunks));
-    printf("The value of chunk entry type is: %x\n", be32toh(dataBlk->chunk[0].EntryType));
-    printf("The value of chunk entry type is: %x\n", be32toh(dataBlk->chunk[1].EntryType));
-
+    
     return dataBlk;
 }
+
 // This function will be called by printdmgBlocks
 void readDataBlks(BLKXTable* dataBlk,FILE* stream)
 {
@@ -105,13 +94,18 @@ void readDataBlks(BLKXTable* dataBlk,FILE* stream)
     fseek(stream, sectorSize * be64toh(dataBlk->SectorNumber), SEEK_SET);  //Seeking to the start od the data block
     printf("The offset  is %lu:", be64toh(dataBlk->chunk[0].CompressedOffset));
 
-    fseek(stream, be64toh(dataBlk->chunk[0].CompressedOffset)*sectorSize , SEEK_CUR);
     for (int noOfChunks = 0; noOfChunks < (be32toh(dataBlk->NumberOfBlockChunks)); noOfChunks++)
     {
+		fseek(stream, be64toh(dataBlk->chunk[noOfChunks].CompressedOffset), SEEK_CUR);
+		
+		printf("The value of chunk is: %lu\n", be64toh(dataBlk->chunk[noOfChunks].CompressedOffset));
         printf("The offset length is %lu:", be64toh(dataBlk->chunk[noOfChunks].CompressedLength));
+		
         compressedBlk = (uint8_t*)malloc(be64toh(dataBlk->chunk[noOfChunks].CompressedLength));
         size_t result=fread(compressedBlk, be64toh(dataBlk->chunk[noOfChunks].CompressedLength) , 1, stream);
+		
         printf("The result of fread is %d", result);
+		printf("The value of chunk entry type is: %x\n", be32toh(dataBlk->chunk[noOfChunks].EntryType));
         //call decompression function by Annirudh.
     }	
 }
