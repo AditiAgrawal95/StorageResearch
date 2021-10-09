@@ -13,6 +13,7 @@ On Linux, run the command:
 
 ```sh
 sudo apt install libxml2-dev
+sudo apt install zlib1g-dev
 ```
 
 To open the project in an IDE, follow the libXML2 installation instructions for your IDE.
