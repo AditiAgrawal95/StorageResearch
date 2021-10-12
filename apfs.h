@@ -186,4 +186,10 @@ typedef struct apfs_super_block {
 	tApFS_BlockRange 	FusionWriteBackBlocks;
 } APFS_SuperBlk;
 
+
+typedef struct apfs_space_man {
+    uint32_t        block_size;
+} APFS_SpaceMan;
+
+
 void parse_APFS( int block_no );	

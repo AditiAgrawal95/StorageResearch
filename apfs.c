@@ -81,8 +81,10 @@ void parse_APFS( int block_no )
 {
 	FILE *apfs = NULL;
 	char filename[16] = {0};
-	APFS_BH *block_header;
+
+	APFS_BH *super_block_header;
 	APFS_SuperBlk *super_blk;
+	APFS_BH *omap_header;
 
 	snprintf(filename, sizeof(filename), "decompressed%d", block_no);
 
@@ -91,7 +93,7 @@ void parse_APFS( int block_no )
 		return;
 	}
 	
-	if (NULL == (block_header = parse_blk_header(apfs))) {
+	if (NULL == (super_block_header = parse_blk_header(apfs))) {
 		printf("Unable to parse APFS: Failed to parse Block header\n");
 		return;
 	}
@@ -100,4 +102,20 @@ void parse_APFS( int block_no )
 		printf("Unable to parse APFS: Failed to parse Suoper Block\n");
 		return;
 	}
+
+
+	uint32_t block_size = super_blk->BlockSize;
+	//Seek to the location of the Objects Map
+	uint64_t omap_indent = super_blk->ObjectsMapIdent;
+	uint64_t byte_addr = omap_indent * block_size;
+	
+	if (fseek(apfs, byte_addr, SEEK_SET)) {
+		printf("Couldn't seek to the desired position in the file.\n");
+	}
+	
+	if (NULL == (omap_header = parse_blk_header(apfs))) {
+		printf("Unable to parse APFS: Failed to parse Block header\n");
+		return;
+	}
+	
 }
