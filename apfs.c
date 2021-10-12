@@ -44,10 +44,33 @@ int parse_super_blk(FILE *apfs)
 	printf("Features - %lu\n", super_blk.Features);
 	printf("ReadOnlyFeatures - %lu\n", super_blk.ReadOnlyFeatures);
 	printf("IncompatibleFeatures - %lu\n", super_blk.IncompatibleFeatures);
-	printf("UUID - %X\n", super_blk.Uuid);
-	printf("NextIndent - %lX\n", super_blk.NextIdent);
+	printf("NextIndent - %lu\n", super_blk.NextIdent);
+	printf("NextTransaction- %lu\n", super_blk.NextTransaction);
 	printf("Desc Blocks - %u\n", super_blk.DescriptorBlocks);
 	printf("Data Blocks - %u\n", super_blk.DataBlocks);
+	printf("DescriptorBase - %lu\n", super_blk.DescriptorBase);
+	printf("DataBase - %lu\n", super_blk.DataBase);
+	printf("DescriptorNext - %u\n", super_blk.DescriptorNext);
+	printf("DataNext - %u\n", super_blk.DataNext);
+	printf("DescriptorIndex - %u\n", super_blk.DescriptorIndex);
+	printf("DescriptorLength - %u\n", super_blk.DescriptorLength);
+	printf("DataIndex - %u\n", super_blk.DataIndex);
+	printf("DataLength - %u\n", super_blk.DataLength);
+	printf("SpaceManagerIdent - %lu\n", super_blk.SpaceManagerIdent);
+	printf("ObjectsMapIdent - %lu\n", super_blk.ObjectsMapIdent);
+	printf("ReaperIdent - %lu\n", super_blk.ReaperIdent);
+	printf("MaximumVolumes - %u\n", super_blk.MaximumVolumes);
+	printf("BlockRange Address - %lu\n", super_blk.BlockedOutOfRange.First);
+	printf("BlockRange Count - %lu\n", super_blk.BlockedOutOfRange.Count);
+	printf("MappingTreeIdent - %lu\n", super_blk.MappingTreeIdent);
+	printf("OtherFlags - %lX\n", super_blk.OtherFlags);
+	printf("JumpstartEFI Address - %lu\n", super_blk.JumpstartEFI);
+	printf("KeyLocker Address - %lu\n", super_blk.KeyLocker.First);
+	printf("KeyLocker Count - %lu\n", super_blk.KeyLocker.Count);
+	printf("EphemeralInfo 1 - %lu\n", super_blk.EphemeralInfo[0]);
+	printf("EphemeralInfo 2 - %lu\n", super_blk.EphemeralInfo[1]);
+	printf("EphemeralInfo 3 - %lu\n", super_blk.EphemeralInfo[2]);
+	printf("EphemeralInfo 4 - %lu\n", super_blk.EphemeralInfo[3]);
 	printf("-------------------------------------\n");
 }
 
