@@ -8,30 +8,6 @@ typedef uint64_t tApFS_Transaction;
 typedef uint64_t  tApFS_Address;
 typedef uint64_t tApFS_BTreeKey;
 
-typedef struct apfs_block_header {
-	uint64_t checksum;
-	uint64_t block_id;
-	uint64_t version;
-	uint16_t block_type;
-	uint16_t flags;
-	uint32_t padding;
-} APFS_BH;
-
-typedef struct tApFS_BlockRange
-{
-    tApFS_Address       First;          // First block
-    uint64_t              Count;          // Blocks' amount
-}tApFS_BlockRange;
-
-struct tApFS_COH
-{
-    uint64_t              CheckSum;       // Control object sum
-    tApFS_Ident         Ident;          // Object identifier
-    tApFS_Transaction   Transaction;    // Object change transaction number
-    uint16_t              Type;           // Object type
-    uint16_t              Flags;          // Object flags
-    uint32_t              SubType;        // Object subType
-};
 
 enum eApFS_ObjectType
 {
@@ -75,6 +51,32 @@ enum eApFS_ObjectFlag
     eApFS_ObjectFlag_NonPersistent   = 0x0800, // Object with this flag is never saved on the media
     eApFS_ObjectFlag_StorageTypeMask = 0xC000, // Bitmask for accessing object category flags
     eApFS_ObjectFlag_ValidMask       = 0xF800  // Valid flag bitmask
+};
+
+typedef struct apfs_block_header {
+	uint64_t checksum;
+	uint64_t block_id;
+	uint64_t version;
+	uint16_t block_type;
+	uint16_t flags;
+    uint16_t sub_type;
+	uint16_t padding;
+} APFS_BH;
+
+typedef struct tApFS_BlockRange
+{
+    tApFS_Address       First;          // First block
+    uint64_t              Count;          // Blocks' amount
+}tApFS_BlockRange;
+
+struct tApFS_COH
+{
+    uint64_t              CheckSum;       // Control object sum
+    tApFS_Ident         Ident;          // Object identifier
+    tApFS_Transaction   Transaction;    // Object change transaction number
+    uint16_t              Type;           // Object type
+    uint16_t              Flags;          // Object flags
+    uint32_t              SubType;        // Object subType
 };
 
 struct tApFS_0B_ObjectsMap_Key
