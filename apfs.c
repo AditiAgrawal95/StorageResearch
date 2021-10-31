@@ -19,6 +19,29 @@ int parse_blk_header(FILE *apfs)
 	return 0;
 }
 
+btree_node_phys_t readAndPrintBtree(FILE* apfs)
+{
+	btree_node_phys_t btree;
+	unsigned int sizeofTree = 0;
+	        if ((sizeofTree = fread(&btree, 1, sizeof(btree), apfs)) < 0) {
+        	            printf("Error reading from apfs File! [%d] size = %lu\n", sizeofTree, sizeof(btree));
+                return btree;
+            }
+	        printf("Parsed Omap's B tree! Size = %u\n", sizeofTree);
+            printf("We are at %d and in hex we are after reading the omap 56 bytes is %x\n",ftell(apfs),ftell(apfs));	
+
+    printf("btn_flags = %lu\n", btree.btn_flags);
+	printf(" count is :%" PRIu16 "\n",btree.btn_level);
+	printf("btn_nkeys = %u\n", btree.btn_nkeys);
+	printf("btn_table_space offset= %d\n", btree.btn_table_space.off);
+	printf("btn_table_space length = %d\n", btree.btn_table_space.len);
+	printf("btn_key_free_list offset= %d\n", btree.btn_key_free_list.off);
+	printf("btn_key_free_list length = %d\n", btree.btn_key_free_list.len);
+    printf("btn_val_free_list offset= %d\n", btree.btn_val_free_list.off);
+	printf("btn_val_free_list length = %d\n", btree.btn_val_free_list.len);
+	return btree;
+}
+
 APFS_SuperBlk findValidSuperBlock(FILE *apfs)
 {
 	APFS_SuperBlk containerSuperBlk;
@@ -115,6 +138,68 @@ omap_phys_t parseValidContainerSuperBlock(FILE *apfs,APFS_SuperBlk containerSupe
 			return omapStructure;
 }
 
+void parseFSObjects(uint8_t fileObjectType,FILE* apfs,uint16_t keyLength,int valueStartAddressforfstree,uint16_t valueOffset,uint16_t valueLength)
+{		
+		
+	if(APFS_TYPE_ANY == fileObjectType)
+	{
+		printf("The objtype is APFS_TYPE_ANY\n");
+	}else if(APFS_TYPE_SNAP_METADATA == fileObjectType){
+		printf("The objtype is APFS_TYPE_SNAP_METADATA\n");
+	}else if(APFS_TYPE_EXTENT ==fileObjectType){
+		printf("The objtype is APFS_TYPE_EXTENT\n");
+	}else if(APFS_TYPE_INODE ==fileObjectType){
+		printf("The objtype is APFS_TYPE_INODE\n");
+		//	j_inode_key_t fileObjectkey_inode = 0;
+	}else if(APFS_TYPE_XATTR ==fileObjectType){
+	    j_xattr_key_t fileObjectkey_xattr ={0};
+		printf("The objtype is APFS_TYPE_XATTR\n");
+	}else if(APFS_TYPE_SIBLING_LINK ==fileObjectType){
+		printf("The objtype is APFS_TYPE_SIBLING_LINK\n");
+	}else if(APFS_TYPE_DSTREAM_ID ==fileObjectType){
+		printf("The objtype is APFS_TYPE_DSTREAM_ID\n");
+	}else if(APFS_TYPE_CRYPTO_STATE ==fileObjectType){
+		printf("The objtype is APFS_TYPE_CRYPTO_STATE\n");
+	}else if(APFS_TYPE_FILE_EXTENT ==fileObjectType){
+		printf("The objtype is APFS_TYPE_FILE_EXTENT\n");
+	}else if(APFS_TYPE_DIR_REC ==fileObjectType){
+		
+		printf("The objtype is APFS_TYPE_DIR_REC\n");
+		
+		j_drec_hashed_key_t fileObjectkey_dir={0};
+		j_drec_val_t  fileObject_dir_value={0};
+		char dirName[keyLength - 12];
+		int result = fread(&fileObjectkey_dir,1,4,apfs);
+		printf("The result of fread is %d",result);
+		fread(&dirName,1,sizeof(dirName),apfs);
+		dirName[keyLength - 12]='\0';
+		// Print the contents of the directory key
+		printf(" The directory length is :%d\n",fileObjectkey_dir.name_len_and_hash & J_DREC_LEN_MASK);
+		printf("The directory name is:");
+		for(int i=0;i<keyLength - 12;i++)
+		{
+			printf("%c",dirName[i]);
+		}
+		printf("\n");
+		
+		fseek(apfs,valueStartAddressforfstree - valueOffset,SEEK_SET);
+		fread(&fileObject_dir_value,1,valueLength,apfs);
+		printf("The file id is  %lu\n",fileObject_dir_value.file_id);
+		printf("The date added is %lu\n",fileObject_dir_value.date_added);
+		printf("The flags for the directory are %" PRIu16 "\n",fileObject_dir_value.flags);
+	}else if(APFS_TYPE_DIR_STATS ==fileObjectType){
+		printf("The objtype is APFS_TYPE_DIR_STATS\n");
+		j_dir_stats_key_t fileObjectkey_dirStat={0};
+	}else if(APFS_TYPE_SNAP_NAME ==fileObjectType){
+		printf("The objtype is APFS_TYPE_SNAP_NAME\n");
+	}else if(APFS_TYPE_SIBLING_MAP ==fileObjectType){
+		printf("The objtype is APFS_TYPE_SIBLING_MAP\n");
+	}else if(APFS_TYPE_FILE_INFO ==fileObjectType){
+		printf("The objtype is APFS_TYPE_FILE_INFO\n");
+	}else if(APFS_TYPE_MAX ==fileObjectType){
+		printf("The objtype is APFS_TYPE_MAX\n");
+	}
+}
 
 apfs_superblock_t findValidVolumeSuperBlock(FILE *apfs,omap_phys_t omapStructure,APFS_SuperBlk containerSuperBlk)
 {
@@ -125,25 +210,8 @@ apfs_superblock_t findValidVolumeSuperBlock(FILE *apfs,omap_phys_t omapStructure
             btree_node_phys_t omapBTree;
 			int endOfOmapBtree = ftell(apfs) + 4096;
 				printf(" EndOfBTree is: %d",endOfOmapBtree);
+            omapBTree = readAndPrintBtree(apfs);
 
-            unsigned int sizeofOmapTree = 0;
-	        if ((sizeofOmapTree = fread(&omapBTree, 1, sizeof(omapBTree), apfs)) < 0) {
-        	            printf("Error reading from apfs File! [%d] size = %lu\n", sizeofOmapTree, sizeof(omapBTree));
-                return volumeSuperBlock;
-            }
-	        printf("Parsed Omap's B tree! Size = %u\n", sizeofOmapTree);
-            printf("We are at %d and in hex we are after reading the omap 56 bytes is %x\n",ftell(apfs),ftell(apfs));	
-
-    printf("btn_flags = %lu\n", omapBTree.btn_flags);
-	printf(" count is :%" PRIu16 "\n",omapBTree.btn_level);
-	printf("btn_nkeys = %u\n", omapBTree.btn_nkeys);
-	printf("btn_table_space offset= %d\n", omapBTree.btn_table_space.off);
-	printf("btn_table_space length = %d\n", omapBTree.btn_table_space.len);
-	printf("btn_key_free_list offset= %d\n", omapBTree.btn_key_free_list.off);
-	printf("btn_key_free_list length = %d\n", omapBTree.btn_key_free_list.len);
-    printf("btn_val_free_list offset= %d\n", omapBTree.btn_val_free_list.off);
-	printf("btn_val_free_list length = %d\n", omapBTree.btn_val_free_list.len);
-	
 	// Now for the table length loop to get the key value pairs.
 	// Check if the kv flag is set to determine if it is kvoff or kloc
 	kvoff_t keyValueStruct[omapBTree.btn_table_space.len/4] ;
@@ -160,6 +228,7 @@ apfs_superblock_t findValidVolumeSuperBlock(FILE *apfs,omap_phys_t omapStructure
 
 
 	}
+	//Add the loop for all volumes
     int keyStartAddress = ftell(apfs);
 	tApFS_0B_ObjectsMap_Key_t key;
 	tApFS_0B_ObjectsMap_Value_t value;
@@ -210,10 +279,114 @@ apfs_superblock_t findValidVolumeSuperBlock(FILE *apfs,omap_phys_t omapStructure
 	printf("APFS Index %u=\n",volumeSuperBlock.apfs_fs_index);
     printf("APFS Features %lu=\n",volumeSuperBlock.apfs_features);
     printf("APFS Compatible Features %lu=\n",volumeSuperBlock.apfs_readonly_compatible_features);
-    printf("APFS Omap ID %lu=\n",volumeSuperBlock.apfs_omap_oid);
+    printf("APFS Omap ID %lu\n",volumeSuperBlock.apfs_omap_oid);
 
     	
     return volumeSuperBlock;
+}
+
+btree_node_phys_t parseAPFSVolumeBlock(FILE *apfs, apfs_superblock_t volumeSuperBlock,APFS_SuperBlk containerSuperBlk,int *endOfOmapBtreeBtree)
+{
+	// Go to omap id
+	fseek(apfs,volumeSuperBlock.apfs_omap_oid * containerSuperBlk.BlockSize,SEEK_SET);
+	omap_phys_t omapStructureVol;			
+	unsigned int sizeofOmapStructure = 0;
+	if ((sizeofOmapStructure = fread(&omapStructureVol, 1, sizeof(omapStructureVol), apfs)) < 0) {
+        	            printf("Error reading from apfs File! [%d] size = %lu\n", sizeofOmapStructure, sizeof(omapStructureVol));
+            }
+	        printf("Parsed the OMAP Structure of Volume Super Block of Size = %u\n", sizeofOmapStructure);
+			printf("Tree oid is: %lu\n",omapStructureVol.om_tree_oid);	
+			
+	// Go to B tree.
+	fseek(apfs,	omapStructureVol.om_tree_oid * containerSuperBlk.BlockSize,SEEK_SET);
+			
+            btree_node_phys_t omapBTree;
+			int endOfOmapBtree = ftell(apfs) + 4096;
+				printf(" EndOfVolumeBTree is: %d",endOfOmapBtree);
+            omapBTree = readAndPrintBtree(apfs);
+
+	// Now for the table length loop to get the key value pairs.
+	// Check if the kv flag is set to determine if it is kvoff or kloc
+	kvoff_t keyValueStruct[omapBTree.btn_table_space.len/4] ;
+	for(int i=0;i<omapBTree.btn_table_space.len;i=i+4)
+	{
+		unsigned int sizeofkvoff_t = 0;
+		sizeofkvoff_t=fread(&keyValueStruct,1,4,apfs);
+		if(keyValueStruct->k !=0 || keyValueStruct->v != 0)
+		{
+	    printf("Parsed sizeofkvoff_t of table of COntents! Size = %u\n", sizeofkvoff_t);
+		printf("btn_data_first_key = %" PRIu16"\n",keyValueStruct->k);	
+	    printf("btn_data_first_val = %d\n", keyValueStruct->v);	
+		}
+
+
+	}
+	fseek(apfs,16,SEEK_CUR);
+	int keyStartAddress = ftell(apfs);
+	tApFS_0B_ObjectsMap_Key_t key;
+	tApFS_0B_ObjectsMap_Value_t value;
+	fread(&key,1,16,apfs);
+	printf("The oid and xid are %lu and %lu\n",key.ObjectIdent,key.Transaction);
+	
+	// check if it is root node or leaf node
+	// find the info address for root node.
+	int startOfBTreeInfo = endOfOmapBtree - (40+32);
+	printf(" startOfBTreeInfo is: %d\n",startOfBTreeInfo);
+	fseek(apfs,startOfBTreeInfo,SEEK_SET);
+	fread(&value,1,16,apfs);
+	printf("The flag size and physicall address are %u, %u and %x and in decimal %d\n",value.Flags,value.Size,value.Address,value.Address);
+	
+	//Go to the Tree inside the VolOmap->Btree->Btree
+	fseek(apfs,value.Address * containerSuperBlk.BlockSize,SEEK_SET);
+	printf(" Vol Omap->Btree->Btree %d and in hex %x\n",ftell(apfs),ftell(apfs));
+	// go to Btree adress
+			
+            btree_node_phys_t omapBTreeBtree;
+			*endOfOmapBtreeBtree = ftell(apfs) + 4096;
+			printf(" EndOfBTree is: %d",*endOfOmapBtreeBtree);
+            omapBTreeBtree = readAndPrintBtree(apfs);
+	
+	return omapBTreeBtree;
+}
+
+void parseFSTree(FILE* apfs,btree_node_phys_t fsBtree,int endOfOmapBtreeBtree)
+{
+	// Now for the table length loop to get the key value pairs.
+	// Check if the kv flag is set to determine if it is kvoff or kloc
+	kvloc_t keyValueStructure[fsBtree.btn_table_space.len/8] ;
+	
+	for(int i=0;i<fsBtree.btn_table_space.len/8; i++)
+	{
+		unsigned int sizeofkvloc_t = 0;
+		sizeofkvloc_t=fread(&keyValueStructure[i],1,8,apfs);
+		if(keyValueStructure[i].k.len !=0 || keyValueStructure[i].v.len != 0)
+		{
+	    printf("Parsed sizeofkvoff_t of table of COntents! Size = %u\n", sizeofkvloc_t);
+		printf("The first offset using array is %" PRIu16"\n",keyValueStructure[i].k.off);
+        printf("The first offset using array is %" PRIu16"\n",keyValueStructure[i].k.len);		
+		
+	    printf("btn_data_first_val offset= %d\n",  keyValueStructure[i].v.off);	
+	    printf("btn_data_first_val length= %d\n",  keyValueStructure[i].v.len);	
+		}
+	}
+	int keyStartAddressBtreeBtree = ftell(apfs);
+	int valueStartAddressforfstree = endOfOmapBtreeBtree - 40;
+	printf("The size of keyvaluestruct is %d",sizeof(keyValueStructure));
+	printf("The fsBtree.btn_table_space.len/8 is %d\n",fsBtree.btn_table_space.len/8);
+	for(int h=0;h < (fsBtree.btn_table_space.len/8);h++)
+	{
+	   uint64_t j_key_header=0;
+	   fseek(apfs,keyStartAddressBtreeBtree,SEEK_SET);	   
+	   fseek(apfs,keyValueStructure[h].k.off,SEEK_CUR);
+
+		fread(&j_key_header,1,8,apfs);
+		// Accessing the object typede
+		uint8_t objType=0;
+		objType=(j_key_header & OBJ_TYPE_MASK) >> OBJ_TYPE_SHIFT;
+		printf("The object Type is: %d\n",objType);
+		parseFSObjects(objType,apfs,keyValueStructure[h].k.len,valueStartAddressforfstree,keyValueStructure[h].v.off,keyValueStructure[h].v.len);		
+		
+	}//for the table of contents
 }
 
 void parse_APFS( int block_no )
@@ -222,6 +395,8 @@ void parse_APFS( int block_no )
 	APFS_SuperBlk containerSuperBlk;
 	omap_phys_t omapStructure;
 	apfs_superblock_t volumeSuperBlock;
+	btree_node_phys_t fsTree;
+	int endOfOmapBtreeBtree=0;
 	APFS_SuperBlk super_blk = {0};
         char filename[16] = {0};
 	unsigned int size = 0;
@@ -241,4 +416,6 @@ void parse_APFS( int block_no )
 	containerSuperBlk=findValidSuperBlock(apfs);
     omapStructure = parseValidContainerSuperBlock(apfs,containerSuperBlk);
     volumeSuperBlock = findValidVolumeSuperBlock(apfs,omapStructure,containerSuperBlk);
+	fsTree=parseAPFSVolumeBlock(apfs,volumeSuperBlock,containerSuperBlk,&endOfOmapBtreeBtree);
+	parseFSTree(apfs,fsTree,endOfOmapBtreeBtree);
 }

@@ -11,6 +11,15 @@
 #define APFS_VOLNAME_LEN 256
 #define APFS_MODIFIED_NAMELEN 32
 
+#define OBJ_ID_MASK 0x0fffffffffffffffULL
+#define OBJ_TYPE_MASK 0xf000000000000000ULL
+#define OBJ_TYPE_SHIFT 60
+
+#define J_DREC_LEN_MASK 0x000003ff
+#define J_DREC_HASH_MASK 0xfffff400
+#define J_DREC_HASH_SHIFT 10
+
+
 
 typedef uint8_t  tApFS_Uuid;
 typedef uint64_t tApFS_Ident;
@@ -361,9 +370,128 @@ oid_t reserved_oid;
 };
 typedef struct apfs_superblock apfs_superblock_t;
 
+typedef enum {
+APFS_TYPE_ANY = 0,
+APFS_TYPE_SNAP_METADATA = 1,
+APFS_TYPE_EXTENT = 2,
+APFS_TYPE_INODE = 3,
+APFS_TYPE_XATTR = 4,
+APFS_TYPE_SIBLING_LINK = 5,
+APFS_TYPE_DSTREAM_ID = 6,
+APFS_TYPE_CRYPTO_STATE = 7,
+APFS_TYPE_FILE_EXTENT = 8,
+APFS_TYPE_DIR_REC = 9,
+APFS_TYPE_DIR_STATS = 10,
+APFS_TYPE_SNAP_NAME = 11,
+APFS_TYPE_SIBLING_MAP = 12,
+APFS_TYPE_FILE_INFO = 13,
+APFS_TYPE_MAX_VALID = 13,
+APFS_TYPE_MAX = 15,
+APFS_TYPE_INVALID = 15,
+} j_obj_types;
+
+
+struct j_key {
+uint64_t obj_id_and_type;
+} __attribute__((packed));
+typedef struct j_key j_key_t;
+// INODE 3
+struct j_inode_key {
+j_key_t hdr;
+} __attribute__((packed));
+typedef struct j_inode_key_t j_inode_key_t;
+
+typedef uint32_t uid_t;
+typedef uint32_t gid_t;
+
+struct j_inode_val {
+uint64_t parent_id;
+uint64_t private_id;
+uint64_t create_time;
+uint64_t mod_time;
+uint64_t change_time;
+uint64_t access_time;
+uint64_t internal_flags;
+union {
+int32_t nchildren;
+int32_t nlink;
+};
+cp_key_class_t default_protection_class;
+uint32_t write_generation_counter;
+uint32_t bsd_flags;
+uid_t owner;
+gid_t group;
+mode_t mode;
+uint16_t pad1;
+uint64_t uncompressed_size;
+uint8_t xfields[];
+} __attribute__((packed));
+typedef struct j_inode_val j_inode_val_t;
+
+
+// Directory 9
+struct j_drec_key {
+j_key_t hdr;
+uint16_t name_len;
+uint8_t name[0];
+} __attribute__((packed));
+typedef struct j_drec_key j_drec_key_t;
+
+struct j_drec_val {
+uint64_t file_id;
+uint64_t date_added;
+uint16_t flags;
+uint8_t xfields[];
+} __attribute__((packed));
+typedef struct j_drec_val j_drec_val_t;
+
+struct j_drec_hashed_key {
+j_key_t hdr;
+uint32_t name_len_and_hash;
+uint8_t name[];
+} __attribute__((packed));
+typedef struct j_drec_hashed_key j_drec_hashed_key_t;
+
+
+// Directory Stat 
+struct j_dir_stats_key {
+j_key_t hdr;
+} __attribute__((packed));
+typedef struct j_dir_stats_key j_dir_stats_key_t;
+
+struct j_dir_stats_val {
+uint64_t num_children;
+uint64_t total_size;
+uint64_t chained_key;
+uint64_t gen_count;
+} __attribute__((packed));
+typedef struct j_dir_stats_val j_dir_stats_val_t;
+
+// Extended Attribute
+struct j_xattr_key {
+j_key_t hdr;
+uint16_t name_len;
+uint8_t name[0];
+} __attribute__((packed));
+typedef struct j_xattr_key j_xattr_key_t;
+
+struct j_xattr_val {
+uint16_t flags;
+uint16_t xdata_len;
+uint8_t xdata[0];
+} __attribute__((packed));
+typedef struct j_xattr_val j_xattr_val_t;
+
+
+//Function Declarations
+
 void parse_APFS( int );	
 APFS_SuperBlk findValidSuperBlock( FILE * );
 omap_phys_t parseValidContainerSuperBlock( FILE *,APFS_SuperBlk );
 apfs_superblock_t findValidVolumeSuperBlock( FILE *,omap_phys_t,APFS_SuperBlk );
+btree_node_phys_t parseAPFSVolumeBlock(FILE *, apfs_superblock_t,APFS_SuperBlk,int*);
+btree_node_phys_t readAndPrintBtree(FILE*);
+void parseFSTree(FILE*,btree_node_phys_t ,int);
+void parseFSObjects(uint8_t,FILE*,uint16_t,int,uint16_t,uint16_t);
 
 
