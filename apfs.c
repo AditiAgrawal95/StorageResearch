@@ -532,8 +532,8 @@ void traverseOmapTree(FILE *apfs, int bTreeAddress, uint32_t blockSize)
 
 	//The key area starts after the table of contents (and grows downward)
 	int keyStartAddr = tableStartAddr + bTreeRoot.btn_table_space.len;
-	//The value area starts starts the byte before the trailer (and grows upward)
-	int valueStartAddr = nodeInfoStartAddr - 1;
+	//The value area starts just before the node info trailer (and grows upward)
+	int valueStartAddr = nodeInfoStartAddr;
 
 	//Read the table of contents into an array
 	toc_entry_t tableEntries[bTreeRoot.btn_nkeys];
@@ -542,10 +542,24 @@ void traverseOmapTree(FILE *apfs, int bTreeAddress, uint32_t blockSize)
 	fread(&tableEntries, 1, tableSize, apfs);
 
 	//Iterate through the table
-	for (int entry = 0; entry < bTreeRoot.btn_nkeys; entry++)
+	for (int entry_index = 0; entry_index < bTreeRoot.btn_nkeys; entry_index++)
 	{
-		printf("Key Offset: %hu\t", tableEntries[entry].key_off);
-		printf("Data Offset: %hu\n", tableEntries[entry].data_off);
+		//Read the key header
+		key_header_t keyHeader;
+		int keyAddr = keyStartAddr + tableEntries[entry_index].key_off;
+		fseek(apfs, keyAddr, SEEK_SET);
+		fread(&keyHeader, 1, sizeof(keyHeader), apfs);
+
+		//Read the object address
+		uint64_t value;
+		int valueAddr = valueStartAddr - tableEntries[entry_index].data_off;
+		fseek(apfs, valueAddr, SEEK_SET);
+		fread(&value, 1, sizeof(uint64_t), apfs);
+
+		printf("\nEntry %i:\n", entry_index);
+		printf("Oid: %lu\n", keyHeader.oid);
+		printf("Xid: %lu\n", keyHeader.xid);
+		printf("Address: %lu\n", value);
 	}
 }
 

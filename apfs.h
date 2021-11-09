@@ -283,6 +283,12 @@ struct toc_entry {
 };
 typedef struct toc_entry toc_entry_t;
 
+struct key_header {
+	uint64_t oid;
+	uint64_t xid;
+};
+typedef struct key_header key_header_t;
+
 struct kvloc {
 	nloc_t k;
 	nloc_t v;
