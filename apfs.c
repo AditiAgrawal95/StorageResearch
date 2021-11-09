@@ -484,6 +484,35 @@ btree_node_phys_t parseAPFSVolumeBlock(FILE *apfs, apfs_superblock_t volumeSuper
 	return omapBTreeBtree;
 }
 
+
+// Visit every node in the given B-Tree
+//
+// apfs:			The file object of the disk image
+// bTreeAddress:	The address of the target B-Tree in blocks
+// blockSize:		The number of bytes in each block
+void traverseBTree(FILE *apfs, int bTreeAddress, uint32_t blockSize)
+{
+	//Seek to the B-Tree root node
+	fseek(apfs, bTreeAddress * blockSize, SEEK_SET);
+
+	//Read the root node struct
+	btree_node_phys_t bTreeRoot;
+	fread(&bTreeRoot, 1, sizeof(bTreeRoot), apfs);
+
+	//Debug Printing
+	printf("Flags: %hu\n", bTreeRoot.btn_flags);
+	printf("Level: %hu\n", bTreeRoot.btn_level);
+	printf("Number of Keys: %u\n", bTreeRoot.btn_nkeys);
+	printf("ToC Offset: %hu\n", bTreeRoot.btn_table_space.off);
+	printf("ToC Length: %hu\n", bTreeRoot.btn_table_space.len);
+	printf("Free Space Offset: %hu\n", bTreeRoot.btn_free_space.off);
+	printf("Free Space Length: %hu\n", bTreeRoot.btn_free_space.len);
+	printf("Key Free List Offset: %hu\n", bTreeRoot.btn_key_free_list.off);
+	printf("Key Free List Length: %hu\n", bTreeRoot.btn_key_free_list.len);
+	printf("Value Free List Offset: %hu\n", bTreeRoot.btn_val_free_list.off);
+	printf("Value Free List Length: %hu\n", bTreeRoot.btn_val_free_list.len);
+}
+
 void parseFSTree(FILE* apfs,btree_node_phys_t fsBtree,int endOfOmapBtreeBtree)
 {
 	struct fs_obj ob1 = {0};
@@ -563,4 +592,17 @@ void parse_APFS( int block_no )
 	volumeSuperBlock = findValidVolumeSuperBlock(apfs,omapStructure,containerSuperBlk);
 	fsTree=parseAPFSVolumeBlock(apfs,volumeSuperBlock,containerSuperBlk,&endOfOmapBtreeBtree);
 	parseFSTree(apfs,fsTree,endOfOmapBtreeBtree);
+
+	///////////////////////////
+	//  B-Tree Parsing Test  //
+	///////////////////////////
+
+	//To-Do: Find the B-Tree address properly without hard coding
+	//Address of root B-Tree node in Many Files.dmg
+	int bTreeAddress = 0x151B;
+
+	printf("\n\nB-TREE TRAVERSAL TEST\n");
+	printf("---------------------\n");
+	traverseBTree(apfs, bTreeAddress, containerSuperBlk.BlockSize);
+	printf("---------------------\n\n");
 }
