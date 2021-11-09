@@ -499,10 +499,24 @@ void traverseOmapTree(FILE *apfs, int bTreeAddress, uint32_t blockSize)
 	btree_node_phys_t bTreeRoot;
 	fread(&bTreeRoot, 1, sizeof(bTreeRoot), apfs);
 
+	//Assert that the B-Tree has an Omap subtype
+	if (bTreeRoot.btn_o.o_subtype != 11)
+	{
+		printf("The B-Tree at address 0x%X is not an Omap sybtype", bTreeAddress);
+		return;
+	}
+
 	//Read node flags
 	int rootNode = bTreeRoot.btn_flags & 1;
 	int leafNode = (bTreeRoot.btn_flags >> 1) & 1;
 	int fixedSize = (bTreeRoot.btn_flags >> 2) & 1;
+
+	//Assert that the keys and values are a fixed size
+	if (fixedSize == 0)
+	{
+		printf("The Omap B-Tree at address 0x%X does not have fixed size keys and values", bTreeAddress);
+		return;
+	}
 
 	//The table of contents always starts 56 bytes into the structure
 	//The node header is 32 bytes and the preceeding fields of the body are 24 bytes
