@@ -488,16 +488,34 @@ btree_node_phys_t parseAPFSVolumeBlock(FILE *apfs, apfs_superblock_t volumeSuper
 // Visit every node in the given B-Tree
 //
 // apfs:			The file object of the disk image
-// bTreeAddress:	The address of the target B-Tree in blocks
+// bTreeAddress:	The byte address of the target B-Tree in blocks
 // blockSize:		The number of bytes in each block
 void traverseBTree(FILE *apfs, int bTreeAddress, uint32_t blockSize)
 {
-	//Seek to the B-Tree root node
-	fseek(apfs, bTreeAddress * blockSize, SEEK_SET);
+	//Seek to the B-Tree node
+	fseek(apfs, bTreeAddress, SEEK_SET);
 
-	//Read the root node struct
+	//Read the node struct
 	btree_node_phys_t bTreeRoot;
 	fread(&bTreeRoot, 1, sizeof(bTreeRoot), apfs);
+
+	//Read node flags
+	int rootNode = bTreeRoot.btn_flags & 1;
+	int leafNode = (bTreeRoot.btn_flags >> 1) & 1;
+	int fixedSize = (bTreeRoot.btn_flags >> 2) & 1;
+
+	//The table of contents always starts 24 bytes into the structure
+	int tableStartAddr = bTreeAddress + 24;
+	//Assuming every node occupies one block, the node info is at the end
+	int nodeInfoSize = sizeof(btree_info_t);
+	int nodeInfoStartAddr = bTreeAddress + blockSize - nodeInfoSize;
+
+	printf("Addr: %i\n", nodeInfoStartAddr);
+
+	//Read the node info struct
+	btree_info_t nodeInfo;
+	fseek(apfs, nodeInfoStartAddr, SEEK_SET);
+	fread(&nodeInfo, 1, nodeInfoSize, apfs);
 
 	//Debug Printing
 	printf("Flags: %hu\n", bTreeRoot.btn_flags);
@@ -511,6 +529,17 @@ void traverseBTree(FILE *apfs, int bTreeAddress, uint32_t blockSize)
 	printf("Key Free List Length: %hu\n", bTreeRoot.btn_key_free_list.len);
 	printf("Value Free List Offset: %hu\n", bTreeRoot.btn_val_free_list.off);
 	printf("Value Free List Length: %hu\n", bTreeRoot.btn_val_free_list.len);
+
+	//Trailer debug printing
+	printf("\n\n");
+	printf("Flags: %hu\n", nodeInfo.bt_fixed.bt_flags);
+	printf("Node Size: %hu\n", nodeInfo.bt_fixed.bt_node_size);
+	printf("Key Size: %hu\n", nodeInfo.bt_fixed.bt_key_size);
+	printf("Value Size: %hu\n", nodeInfo.bt_fixed.bt_val_size);
+	printf("Longest Key: %hu\n", nodeInfo.bt_longest_key);
+	printf("Longest Value: %hu\n", nodeInfo.bt_longest_val);
+	printf("Key Count: %hu\n", nodeInfo.bt_key_count);
+	printf("Node Count: %hu\n", nodeInfo.bt_node_count);
 }
 
 void parseFSTree(FILE* apfs,btree_node_phys_t fsBtree,int endOfOmapBtreeBtree)
@@ -599,10 +628,11 @@ void parse_APFS( int block_no )
 
 	//To-Do: Find the B-Tree address properly without hard coding
 	//Address of root B-Tree node in Many Files.dmg
-	int bTreeAddress = 0x151B;
+	int bTreeBlockAddr = 0x151B;
+	int bTreeByteAddr = bTreeBlockAddr * containerSuperBlk.BlockSize;
 
 	printf("\n\nB-TREE TRAVERSAL TEST\n");
 	printf("---------------------\n");
-	traverseBTree(apfs, bTreeAddress, containerSuperBlk.BlockSize);
+	traverseBTree(apfs, bTreeByteAddr, containerSuperBlk.BlockSize);
 	printf("---------------------\n\n");
 }
