@@ -485,12 +485,12 @@ btree_node_phys_t parseAPFSVolumeBlock(FILE *apfs, apfs_superblock_t volumeSuper
 }
 
 
-// Visit every node in the given B-Tree
+// Visit every node in the given Omap B-Tree
 //
 // apfs:			The file object of the disk image
 // bTreeAddress:	The byte address of the target B-Tree in blocks
 // blockSize:		The number of bytes in each block
-void traverseBTree(FILE *apfs, int bTreeAddress, uint32_t blockSize)
+void traverseOmapTree(FILE *apfs, int bTreeAddress, uint32_t blockSize)
 {
 	//Seek to the B-Tree node
 	fseek(apfs, bTreeAddress, SEEK_SET);
@@ -504,42 +504,35 @@ void traverseBTree(FILE *apfs, int bTreeAddress, uint32_t blockSize)
 	int leafNode = (bTreeRoot.btn_flags >> 1) & 1;
 	int fixedSize = (bTreeRoot.btn_flags >> 2) & 1;
 
-	//The table of contents always starts 24 bytes into the structure
-	int tableStartAddr = bTreeAddress + 24;
-	//Assuming every node occupies one block, the node info is at the end
+	//The table of contents always starts 56 bytes into the structure
+	//The node header is 32 bytes and the preceeding fields of the body are 24 bytes
+	int tableStartAddr = bTreeAddress + 56;
+	//Assuming every node occupies one block, the node info is at the end of the block
 	int nodeInfoSize = sizeof(btree_info_t);
 	int nodeInfoStartAddr = bTreeAddress + blockSize - nodeInfoSize;
-
-	printf("Addr: %i\n", nodeInfoStartAddr);
 
 	//Read the node info struct
 	btree_info_t nodeInfo;
 	fseek(apfs, nodeInfoStartAddr, SEEK_SET);
 	fread(&nodeInfo, 1, nodeInfoSize, apfs);
 
-	//Debug Printing
-	printf("Flags: %hu\n", bTreeRoot.btn_flags);
-	printf("Level: %hu\n", bTreeRoot.btn_level);
-	printf("Number of Keys: %u\n", bTreeRoot.btn_nkeys);
-	printf("ToC Offset: %hu\n", bTreeRoot.btn_table_space.off);
-	printf("ToC Length: %hu\n", bTreeRoot.btn_table_space.len);
-	printf("Free Space Offset: %hu\n", bTreeRoot.btn_free_space.off);
-	printf("Free Space Length: %hu\n", bTreeRoot.btn_free_space.len);
-	printf("Key Free List Offset: %hu\n", bTreeRoot.btn_key_free_list.off);
-	printf("Key Free List Length: %hu\n", bTreeRoot.btn_key_free_list.len);
-	printf("Value Free List Offset: %hu\n", bTreeRoot.btn_val_free_list.off);
-	printf("Value Free List Length: %hu\n", bTreeRoot.btn_val_free_list.len);
+	//The key area starts after the table of contents (and grows downward)
+	int keyStartAddr = tableStartAddr + bTreeRoot.btn_table_space.len;
+	//The value area starts starts the byte before the trailer (and grows upward)
+	int valueStartAddr = nodeInfoStartAddr - 1;
 
-	//Trailer debug printing
-	printf("\n\n");
-	printf("Flags: %hu\n", nodeInfo.bt_fixed.bt_flags);
-	printf("Node Size: %hu\n", nodeInfo.bt_fixed.bt_node_size);
-	printf("Key Size: %hu\n", nodeInfo.bt_fixed.bt_key_size);
-	printf("Value Size: %hu\n", nodeInfo.bt_fixed.bt_val_size);
-	printf("Longest Key: %hu\n", nodeInfo.bt_longest_key);
-	printf("Longest Value: %hu\n", nodeInfo.bt_longest_val);
-	printf("Key Count: %hu\n", nodeInfo.bt_key_count);
-	printf("Node Count: %hu\n", nodeInfo.bt_node_count);
+	//Read the table of contents into an array
+	toc_entry_t tableEntries[bTreeRoot.btn_nkeys];
+	int tableSize = bTreeRoot.btn_nkeys * sizeof(toc_entry_t);
+	fseek(apfs, tableStartAddr, SEEK_SET);
+	fread(&tableEntries, 1, tableSize, apfs);
+
+	//Iterate through the table
+	for (int entry = 0; entry < bTreeRoot.btn_nkeys; entry++)
+	{
+		printf("Key Offset: %hu\t", tableEntries[entry].key_off);
+		printf("Data Offset: %hu\n", tableEntries[entry].data_off);
+	}
 }
 
 void parseFSTree(FILE* apfs,btree_node_phys_t fsBtree,int endOfOmapBtreeBtree)
@@ -633,6 +626,6 @@ void parse_APFS( int block_no )
 
 	printf("\n\nB-TREE TRAVERSAL TEST\n");
 	printf("---------------------\n");
-	traverseBTree(apfs, bTreeByteAddr, containerSuperBlk.BlockSize);
+	traverseOmapTree(apfs, bTreeByteAddr, containerSuperBlk.BlockSize);
 	printf("---------------------\n\n");
 }

@@ -277,6 +277,12 @@ struct nloc {
 };
 typedef struct nloc nloc_t;
 
+struct toc_entry {
+	uint16_t key_off;
+	uint16_t data_off;
+};
+typedef struct toc_entry toc_entry_t;
+
 struct kvloc {
 	nloc_t k;
 	nloc_t v;
