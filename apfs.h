@@ -277,11 +277,19 @@ struct nloc {
 };
 typedef struct nloc nloc_t;
 
-struct toc_entry {
+struct toc_entry_varlen {
+	uint16_t key_off;
+	uint16_t key_len;
+	uint16_t data_off;
+	uint16_t data_len;
+};
+typedef struct toc_entry_varlen toc_entry_varlen_t;
+
+struct toc_entry_fixed {
 	uint16_t key_off;
 	uint16_t data_off;
 };
-typedef struct toc_entry toc_entry_t;
+typedef struct toc_entry_fixed toc_entry_fixed_t;
 
 struct key_header {
 	uint64_t oid;
