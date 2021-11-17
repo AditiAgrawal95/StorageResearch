@@ -542,21 +542,27 @@ int searchBTree(FILE *apfsImage, uint32_t blockSize, uint64_t bNodeAddr,  uint8_
 	fseek(apfsImage, bNodeAddr, SEEK_SET);
 
 	//Read the node struct
-	btree_node_phys_t bTreeRoot;
-	fread(&bTreeRoot, 1, sizeof(bTreeRoot), apfsImage);
+	btree_node_phys_t bNodeStruct;
+	fread(&bNodeStruct, 1, sizeof(bNodeStruct), apfsImage);
 
 	//Read node flags
-	int rootNode = bTreeRoot.btn_flags & 1;
-	int leafNode = (bTreeRoot.btn_flags >> 1) & 1;
-	int fixedSize = (bTreeRoot.btn_flags >> 2) & 1;
+	int rootNode = bNodeStruct.btn_flags & 1;
+	int leafNode = (bNodeStruct.btn_flags >> 1) & 1;
+	int fixedSize = (bNodeStruct.btn_flags >> 2) & 1;
 
 	//The table of contents always starts 56 bytes into the structure
 	//The node header is 32 bytes and the preceeding fields of the body are 24 bytes
 	int tableStartAddr = bNodeAddr + 56;
 	//The key area starts after the table of contents (and grows downward)
-	int keyStartAddr = tableStartAddr + bTreeRoot.btn_table_space.len;
-	//The value area starts just before the node info trailer (and grows upward)
-	int valueStartAddr = bNodeAddr + blockSize - sizeof(btree_info_t);
+	int keyStartAddr = tableStartAddr + bNodeStruct.btn_table_space.len;
+
+	//The value area starts at the end of the node (and grows upward)
+	int valueStartAddr = bNodeAddr + blockSize;
+
+	//If the node is the root, account for the info trailer 
+	if (rootNode)
+		valueStartAddr -= sizeof(btree_info_t);
+
 
 	//Create pointers for both a fixed length and variable length table of contents
 	toc_entry_fixed_t *tableEntriesFixed = NULL;
@@ -568,19 +574,19 @@ int searchBTree(FILE *apfsImage, uint32_t blockSize, uint64_t bNodeAddr,  uint8_
 	//Read the table of contents into an array
 	if (fixedSize)
 	{
-		int tableSize = bTreeRoot.btn_nkeys * sizeof(toc_entry_fixed_t);
+		int tableSize = bNodeStruct.btn_nkeys * sizeof(toc_entry_fixed_t);
 		tableEntriesFixed = malloc(tableSize);
 		fread(tableEntriesFixed, 1, tableSize, apfsImage);
 	}
 	else
 	{
-		int tableSize = bTreeRoot.btn_nkeys * sizeof(toc_entry_varlen_t);
+		int tableSize = bNodeStruct.btn_nkeys * sizeof(toc_entry_varlen_t);
 		tableEntriesVarLen = malloc(tableSize);
 		fread(tableEntriesVarLen, 1, tableSize, apfsImage);
 	}
 
 	//Iterate through the table
-	for (int entry_index = 0; entry_index < bTreeRoot.btn_nkeys; entry_index++)
+	for (int entry_index = 0; entry_index < bNodeStruct.btn_nkeys; entry_index++)
 	{
 		uint16_t keyOff, dataOff, keyLen, dataLen;
 
@@ -589,6 +595,8 @@ int searchBTree(FILE *apfsImage, uint32_t blockSize, uint64_t bNodeAddr,  uint8_
 		{
 			keyOff = tableEntriesFixed[entry_index].key_off;
 			dataOff = tableEntriesFixed[entry_index].data_off;
+			//Set the key length to the search key length in case the user
+			//only wants to compare a portion of the key
 			keyLen = searchKeyLen;
 			dataLen = returnValueLen;
 		}
@@ -606,7 +614,7 @@ int searchBTree(FILE *apfsImage, uint32_t blockSize, uint64_t bNodeAddr,  uint8_
 		fseek(apfsImage, keyAddr, SEEK_SET);
 		fread(&key, 1, keyLen, apfsImage);
 
-		//Compare the two arrays
+		//Compare the two key arrays
 		int keyComp = compArray(searchKey, searchKeyLen, key, keyLen);
 
 		//If this node is not a leaf, get the address to the next layer
@@ -621,11 +629,17 @@ int searchBTree(FILE *apfsImage, uint32_t blockSize, uint64_t bNodeAddr,  uint8_
 				//Otherwise, read and return the address to the next BNode
 				else
 				{
+					//Find the data offset of the previous entry
+					if (fixedSize)
+						dataOff = tableEntriesFixed[entry_index-1].data_off;
+					else
+						dataOff = tableEntriesVarLen[entry_index-1].data_off;
+
 					int valueAddr = valueStartAddr - dataOff;
 					fseek(apfsImage, valueAddr, SEEK_SET);
 					fread(nextBNode, 1, sizeof(uint64_t), apfsImage);
 
-					return 0;
+					return 1;
 				}
 			}
 		}
@@ -647,6 +661,52 @@ int searchBTree(FILE *apfsImage, uint32_t blockSize, uint64_t bNodeAddr,  uint8_
 				return 0;
 			}
 		}
+	}
+
+	//If no matches were found, the key is not in the B-Tree
+	return -1;
+}
+
+/*
+ * Searches an Omap for the physical address of the object corresponding to the given virtual address
+ *
+ * Parameters
+ * 
+ * FILE apfsImage:		A file stream for the APFS disk image
+ * uint32_t blockSize:	Typically 4096
+ * uint64_t omapAddr:	The physical address of the OMap
+ * uint64_t oid:		The virtual address of the object to search for
+ *
+ * Return Value
+ * 
+ *  NULL if the OID is not found
+ *  A pointer to the omap value struct if the OID is found
+ */
+tApFS_0B_ObjectsMap_Value_t* searchOmap(FILE *apfsImage, uint32_t blockSize, uint64_t omapAddr, uint64_t oid)
+{
+	//Omap keys are supposed to be 16 bytes (oid and xid)
+	//We will ignore the xid and only pass the 8 byte oid
+	uint keyLen = 8;
+	//The return value is as 16 byte tApFS_0B_ObjectsMap_Value_t struct
+	uint valLen = 16;
+	uint64_t nextBNode;
+	tApFS_0B_ObjectsMap_Value_t* returnVal = malloc(sizeof(tApFS_0B_ObjectsMap_Value_t));
+
+	//Search the B-Tree for the key
+	int result = searchBTree(apfsImage, blockSize, omapAddr, (uint8_t*)(&oid), keyLen, (uint8_t*)returnVal, valLen, &nextBNode);
+
+	//Key not found
+	if (result == -1)
+		return NULL;
+	//Key found
+	else if (result == 0)
+		return returnVal;
+	//Key in lower level of B-Tree
+	else if (result == 1)
+	{
+		//Convert the virtual B-Node address to a physical one
+		nextBNode *= blockSize;
+		return searchOmap(apfsImage, blockSize, nextBNode, oid);
 	}
 }
 
@@ -741,6 +801,15 @@ void parse_APFS( int block_no )
 
 	printf("\n\nB-TREE TRAVERSAL TEST\n");
 	printf("---------------------\n");
-	//traverseOmapTree(apfs, bTreeByteAddr, containerSuperBlk.BlockSize);
+
+	int searchOID = 1028;
+	tApFS_0B_ObjectsMap_Value_t *omapResult = searchOmap(apfs, containerSuperBlk.BlockSize, bTreeByteAddr, searchOID);
+	printf("Searching for oid %i\n", searchOID);
+
+	if (omapResult == NULL)
+		printf("OID not found\n");
+	else
+		printf("Physical address is: %lld\n", omapResult->Address);
+
 	printf("---------------------\n\n");
 }
