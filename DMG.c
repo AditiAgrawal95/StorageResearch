@@ -290,7 +290,7 @@ char* removeWhiteSpace(char* string)
 	return copy;
 }
 
-int printDmgBlocks(xmlDoc *doc, xmlNode *blkxNode,FILE* stream)
+int printDmgBlocks(xmlDoc *doc, xmlNode *blkxNode,FILE* stream,command_line_args args)
 {
 	xmlNode *array = findSiblingByType(blkxNode, "array");
 
@@ -348,7 +348,7 @@ int printDmgBlocks(xmlDoc *doc, xmlNode *blkxNode,FILE* stream)
 		
 		if (strstr(name, "Apple_APFS") != NULL) {
 			printf("Parsing APFS\n");
-			parse_APFS(i);
+			parse_APFS(i,args);
 		}
 
 		free(data);
@@ -361,7 +361,7 @@ int printDmgBlocks(xmlDoc *doc, xmlNode *blkxNode,FILE* stream)
 
 //Adapted from the article:
 //https://www.developer.com/database/libxml2-everything-you-need-in-an-xml-library/
-void parseXML(char* xmlStr,FILE* stream)
+void parseXML(char* xmlStr,FILE* stream,command_line_args args)
 {
 	xmlDoc *doc = NULL;
 	xmlNode *root = NULL;
@@ -385,28 +385,104 @@ void parseXML(char* xmlStr,FILE* stream)
 	}
 
 	//Print the plist blocks
-	printDmgBlocks(doc, blkx,stream);
+	printDmgBlocks(doc, blkx,stream,args);
 
 	//Free any libXML2 memory
 	xmlFreeDoc(doc);
 	xmlCleanupParser();
 }
 
+int checkCommandLineArguments(char** argv, int argc)
+{
+	int result = 0;
+	if (argc < 2) {
+    	printf("Not Enough Arguments!\n");
+    	return 1;
+    }else if(argc > 5){
+		printf("Excess arguments entered!\n");
+		result =1;
+	}
+	else if( argc == 3){
+		if(strcmp(argv[2],"-c") != 0 && strcmp(argv[2],"-C") != 0 && strcmp(argv[2],"-v") != 0 && strcmp(argv[2],"-V") != 0)
+		{
+			printf("Wrong parameter entered!\n");
+			result =1;
+		}
+	}else if (argc == 4){
+		if( strcmp(argv[2],"-v") == 0 || strcmp(argv[2],"-V") == 0)
+		{
+			// Make sure that argument contains nothing but digits
+            for (int i = 0; argv[3][i] != '\0'; i++)
+            {
+                if (!isdigit(argv[3][i]))
+                {
+                    printf("Volume id has to be an interger!\n");
+					result =1;
+                    break;
+                }//if
+            }//for
+		}//if 
+	}else if(argc == 5 && (strcmp(argv[4],"-fs") != 0 && strcmp(argv[4],"-FS") != 0) ){
+		printf("Wrong parameter entered for Volume's file structure! \n");
+		result=1;
+	}
+	return result;
+}
+
+void printUsage()
+{
+	printf("Usage :              apfs_parser <DMG_FILE>               Prints the Disk Image Structure\n \
+	                          -c                      Container Superblock Information\n \
+                                 -v [ Volume ID ]        All Vol SuperBlock Information | Specified Volume's Information \n \
+                                 -f <file_name>          Displays file content\n \
+                                 -v <Volume_ID> -fs      Displays File system Structure\n");	
+}
+
+command_line_args fillCommandLineArguments(char **argv,int argc)
+{
+	command_line_args args={0};
+	if( strlen(argv[2]) > 0 )
+	{
+		if(strcmp(argv[2],"-c") == 0 || strcmp(argv[2],"-C") == 0)
+		    args.container = 1;
+	    else if(strcmp(argv[2],"-v") == 0 || strcmp(argv[2],"-V") == 0){
+	        args.volume = 1;
+			if(argc == 4)
+			{
+				args.volume_ID = atoi(argv[3]);
+			}
+		}else{
+			args.file = 1;
+		     if(argc == 4)
+			{
+				strncpy(args.file_name,argv[3],strlen(argv[3]));
+			}
+		}
+	}
+	if( argc == 5 )
+		args.fs_structure = 1;
+	
+	return args;
+}
 int main(int argc, char** argv)
 {
     FILE* stream = NULL;
     UDIFResourceFile dmgTrailer;
     char *plist;
-
-    if (argc < 2) {
-    	printf("Not Enough Arguments\nCorrect Usage: DMG <dmg_path>\n");
-    	return 1;
-    }
-
+    command_line_args args;
+    // check command line arguments 
+	int result = checkCommandLineArguments( argv , argc);
+	if(result == 1)
+	{
+		printUsage();
+		return 1;
+	}else{
+		args=fillCommandLineArguments(argv,argc);
+	}
     stream = readImageFile(stream, argv[1]);
     parseDMGTrailer(stream, &dmgTrailer);      // reference of dmgTrailer is passed.
     readXMLOffset(stream,&dmgTrailer,&plist);  //reference of dmgTrailer and plist is passed
-    parseXML(plist,stream);
+    parseXML(plist,stream,args);
 	
     free(plist);
     return 0;

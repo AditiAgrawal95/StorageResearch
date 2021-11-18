@@ -7,20 +7,19 @@ int parse_blk_header(FILE *apfs)
 {
 	APFS_BH block_header = {0};
 	unsigned int size = 0;
-	printf("Printing the ftell at the beginning of the block %d\n",ftell(apfs));
+	
 	if ((size = fread(&block_header, 1, sizeof(block_header), apfs)) < 0) {
 		printf("Error reading from APFS File! [%d] size = %lu\n", size, sizeof(block_header));
 		return -1;
 	}
-	printf("Parsed APFS BLK Header of Container at Block 0 and it's Size = %u\n", size);
-
-	printf("Checksum = %lu\n", block_header.checksum);
-	printf("Block ID = %lu\n", block_header.block_id);
-	printf("Version = %lu\n", block_header.version);
-
 	return 0;
 }
 
+/*
+   Input Parameters: FILE* 
+   Return Type:      btree_node_phys_t
+   Description: Function reads the bTree Node.
+*/
 btree_node_phys_t readAndPrintBtree(FILE* apfs)
 {
 	btree_node_phys_t btree;
@@ -29,52 +28,205 @@ btree_node_phys_t readAndPrintBtree(FILE* apfs)
 		printf("Error reading from apfs File! [%d] size = %lu\n", sizeofTree, sizeof(btree));
 		return btree;
 	}
-	printf("Parsed Omap's B tree! Size = %u\n", sizeofTree);
-	printf("We are at %d and in hex we are after reading the omap 56 bytes is %x\n",ftell(apfs),ftell(apfs));	
-
-	printf("btn_flags = %lu\n", btree.btn_flags);
-	printf(" count is :%" PRIu16 "\n",btree.btn_level);
-	printf("btn_nkeys = %u\n", btree.btn_nkeys);
-	printf("btn_table_space offset= %d\n", btree.btn_table_space.off);
-	printf("btn_table_space length = %d\n", btree.btn_table_space.len);
-	printf("btn_key_free_list offset= %d\n", btree.btn_key_free_list.off);
-	printf("btn_key_free_list length = %d\n", btree.btn_key_free_list.len);
-	printf("btn_val_free_list offset= %d\n", btree.btn_val_free_list.off);
-	printf("btn_val_free_list length = %d\n", btree.btn_val_free_list.len);
 	return btree;
 }
 
-APFS_SuperBlk findValidSuperBlock(FILE *apfs)
+/*
+   Input Parameters: APFS_BH, uint32_t 
+   Return Type:      void
+   Description: Function prints the Header of container superblock,
+                Called to print the older versions of container superblock.
+                
+*/
+void printContainerHeader(APFS_BH block_header,uint32_t containerAddress)
+{
+	printf("\n");
+	printf("Container SuperBlock 	Address: %x		\n",containerAddress);
+	printf("Checksum           			%lu\n",  block_header.checksum);
+	printf("Block ID            			%lu\n",  block_header.block_id);
+	printf("Version/TransactionID			%lu\n",  block_header.version);
+	printf("Block Type          			%u\n",  block_header.block_type);
+	printf("Flags               			%u\n", block_header.flags);
+	printf("Padding             			%u\n", block_header.padding);
+}
+
+/*
+   Input Parameters: obj_phys_t 
+   Return Type:      void
+   Description: Function prints the header of volume superblock,
+                
+*/
+void print_blk_header(obj_phys_t obj)
+{
+	int i = 0;
+
+	printf(" ##### BLOCK Header #####\n");
+	printf("Checksum                        ");
+	for (; i < MAX_CKSUM_SIZE; ++i)
+		printf("%0x", obj.o_cksum[i]);
+	printf("\n");
+
+    printf("Block ID             			%lu\n", obj.o_oid);
+    printf("Version              			%lu\n", obj.o_xid);
+	printf("Block Type           			%x\n",  obj.o_type & OBJECT_TYPE_MASK);
+	printf("Flags                 			%x\n", obj.o_type & OBJECT_TYPE_FLAGS_MASK);
+	printf("Sub Type             			%x\n", obj.o_subtype);
+	printf(" ##### END #####\n");	
+}
+
+/*
+   Input Parameters: apfs_superblock_t, uint32_t , uint32_t 
+   Return Type:      void
+   Description: Function prints the structure of volume superblock,
+                starting address and size.
+                
+*/
+void printVolumeSuperBlock(apfs_superblock_t volumeSuperBlock, uint32_t volumeSuperBlkAddress, uint32_t sizeOfVolBlk)
+{
+    
+	printf("\n");
+	printf("Volume SuperBlock 	Address: %x		Size: %d\n",volumeSuperBlkAddress,sizeOfVolBlk);
+	print_blk_header(volumeSuperBlock.apfs_o);
+	printf("Magic Number        			%s\n", (char*) &volumeSuperBlock.apfs_magic);
+	printf("FS INdex            			%u\n", volumeSuperBlock.apfs_fs_index);
+	printf("Unmount time         			%lu\n", volumeSuperBlock.apfs_unmount_time);
+	printf("Features             			%lu\n", volumeSuperBlock.apfs_features);
+	printf("Reserved blks       			%lu\n", volumeSuperBlock.apfs_fs_reserve_block_count);
+	printf("Quota blks          			%lu\n", volumeSuperBlock.apfs_fs_quota_block_count);
+    printf("Alloc blks           			%lu\n", volumeSuperBlock.apfs_fs_alloc_count);
+	printf("Root tree type       			%0x\n", volumeSuperBlock.apfs_root_tree_type);
+    printf("Extent type         			%0x\n", volumeSuperBlock.apfs_extentref_tree_type);
+    printf("Meta tree type        			%0x\n", volumeSuperBlock.apfs_snap_meta_tree_type);
+    printf("OMAP OID             			%lu\n", volumeSuperBlock.apfs_omap_oid);
+    printf("Root Tree OID        			%lu\n", volumeSuperBlock.apfs_root_tree_oid);
+    printf("Extent tree OID      			%lu\n", volumeSuperBlock.apfs_extentref_tree_oid);
+    printf("Snap meta tree oid    			%lu\n", volumeSuperBlock.apfs_snap_meta_tree_oid);
+    printf("Next obj ID         			%lu\n", volumeSuperBlock.apfs_next_obj_id);
+    printf("Num Files            			%lu\n", volumeSuperBlock.apfs_num_files);
+    printf("Num Directories      			%lu\n", volumeSuperBlock.apfs_num_directories);
+    printf("Symlinks             			%lu\n", volumeSuperBlock.apfs_num_symlinks);
+    printf("other fs objects      			%lu\n", volumeSuperBlock.apfs_num_other_fsobjects);
+    printf("Num Snapshots        			%lu\n", volumeSuperBlock.apfs_num_snapshots);
+    printf("Total blks allocated   			%lu\n", volumeSuperBlock.apfs_total_blocks_alloced);
+    printf("Total blks freed     			%lu\n", volumeSuperBlock.apfs_total_blocks_freed);
+	printf("Last Modified Time     			%lu\n", volumeSuperBlock.apfs_last_mod_time);
+    printf("FS Flags            			%lu\n", volumeSuperBlock.apfs_fs_flags);
+	printf("Volume Name            			%s\n", (char*) &volumeSuperBlock.apfs_volname);
+    printf("Next Doc ID            			%u\n", volumeSuperBlock.apfs_next_doc_id);
+	printf("APFS Role           			%u\n", volumeSuperBlock.apfs_role);
+	printf("Reserved            			%u\n", volumeSuperBlock.reserved);
+    printf("APFS Root to Xid      			%lu\n", volumeSuperBlock.apfs_root_to_xid);
+    printf("APFS er State oid          		%lu\n", volumeSuperBlock.apfs_er_state_oid);
+    printf("APFS Cloneinfo Id Epoch        		%lu\n", volumeSuperBlock.apfs_cloneinfo_id_epoch);
+    printf("APFS Cloneinfo Xid    			%lu\n", volumeSuperBlock.apfs_cloneinfo_xid);
+    printf("APFS Snap meta Ext Oid   		%lu\n", volumeSuperBlock.apfs_snap_meta_ext_oid);
+
+    printf("APFS Integrity meta Oid   		%lu\n", volumeSuperBlock.apfs_integrity_meta_oid);
+    printf("APFS Fext Tree Oid      		%lu\n", volumeSuperBlock.apfs_fext_tree_oid);
+	printf("APFS Fext Tree Type       		%u\n", volumeSuperBlock.apfs_fext_tree_type);
+    printf("Reserved Type            		%u\n", volumeSuperBlock.reserved_type);
+    printf("Reserved Oid            		%lu\n", volumeSuperBlock.reserved_oid);	
+}
+
+/*
+   Input Parameters: APFS_SuperBlk, uint32_t , uint32_t 
+   Return Type:      void
+   Description: Function prints the structure of container superblock,
+                starting address and size.
+                
+*/
+
+void printContainerSuperBlock(APFS_SuperBlk containerSuperBlk, uint32_t containerAddress, uint32_t sizeOfContainer,APFS_BH block_header)
+{
+	printf("\n");
+	printf("Latest Container SuperBlock 	Address: %x		Size: %d\n",containerAddress,sizeOfContainer);
+	printf(" ##### BLOCK Header #####\n");
+	printf("Checksum           			%lu\n",  block_header.checksum);
+	printf("Block ID            			%lu\n",  block_header.block_id);
+	printf("Version/TransactionID			%lu\n",  block_header.version);
+	printf("Block Type          			%u\n",  block_header.block_type);
+	printf("Flags               			%u\n", block_header.flags);
+	printf("Padding             			%u\n", block_header.padding);
+	printf(" ##### END #####\n");
+	
+	printf("Magic Number        			%s\n", (char*) &containerSuperBlk.MagicNumber);
+	printf("BlockSize           			%u\n", containerSuperBlk.BlockSize);
+	printf("BlocksCount         			%lu\n", containerSuperBlk.BlocksCount);
+	printf("Features             			%lu\n", containerSuperBlk.Features);
+	printf("ReadOnlyFeatures     			%lu\n", containerSuperBlk.ReadOnlyFeatures);
+	printf("IncompatibleFeatures 			%lu\n", containerSuperBlk.IncompatibleFeatures);
+
+	printf("Uuid                   			");
+	for (int i = 0; i < 16; ++i) {
+		printf("%0x", containerSuperBlk.Uuid[i]);
+	}
+	printf("\n");
+
+	printf("NextIdent            			%lu\n", containerSuperBlk.NextIdent);
+	printf("NextTransaction        			%lu\n", containerSuperBlk.NextTransaction);
+	printf("DescriptorBlocks     			%u\n", containerSuperBlk.DescriptorBlocks);
+	printf("DataBlocks          			%u\n", containerSuperBlk.DataBlocks);
+	printf("DescriptorBase       			%0x\n", containerSuperBlk.DescriptorBase);
+	printf("DataBase            			%u\n", containerSuperBlk.DataBase);
+	printf("DescriptorNext      			%u\n", containerSuperBlk.DescriptorNext);
+	printf("DataNext             			%u\n", containerSuperBlk.DataNext);
+	printf("DescriptorIndex       			%u\n", containerSuperBlk.DescriptorIndex);
+	printf("DescriptorLength      			%u\n", containerSuperBlk.DescriptorLength);
+	printf("DataIndex              			%u\n", containerSuperBlk.DataIndex);
+	printf("DataLength             			%u\n", containerSuperBlk.DataLength);
+	printf("SpaceManagerIdent   			%lu\n", containerSuperBlk.SpaceManagerIdent);
+	printf("ObjectsMapIdent      			%lu\n", containerSuperBlk.ObjectsMapIdent);
+	printf("ReaperIdent              		%lu\n", containerSuperBlk.ReaperIdent);
+	printf("ReservedForTesting   			%u\n", containerSuperBlk.ReservedForTesting0);
+	printf("MaximumVolumes       			%u\n", containerSuperBlk.MaximumVolumes);
+
+	for (int i = 0; i < 100; ++i)
+		if (containerSuperBlk.VolumesIdents[i])
+			printf("VolumesIdent %d				%lu ", i, containerSuperBlk.VolumesIdents[i]);
+	printf("\n");
+
+	printf("MappingTreeIdent      			%lu\n", containerSuperBlk.MappingTreeIdent);
+	printf("OtherFlags          			%lu\n", containerSuperBlk.OtherFlags);
+	printf("JumpstartEFI        			%lu\n", containerSuperBlk.JumpstartEFI);
+	printf("FusionUuid             			%u\n", containerSuperBlk.FusionUuid);
+		
+}
+
+/*
+   Input Parameters: FILE*, argv 
+   Return Type:      APFS_SuperBlk
+   Description: Function finds the latest container superblock.
+                It loops through the checkpoint array in reverse, since the array is sorted,
+				the latest superblock's detail is found in the beginning of the loop.
+				Loop continues to fetch the older versions of container superblock.
+                
+*/
+APFS_SuperBlk findValidSuperBlock(FILE *apfs,command_line_args argv)
 {
 	APFS_SuperBlk containerSuperBlk;
+	APFS_BH block_header_chkMap = {0};
+	APFS_SuperBlk validContainerSuperBlk;
+	APFS_BH valid_block_header_chkMap = {0};
+	uint32_t containerSize=0,recentValidSuperblock =0,validSuperBlockAddress =0;
+	
 	int size=fread(&containerSuperBlk,1,sizeof(containerSuperBlk),apfs);
-	printf("Read the body of Container Super Block at Block 0 and it;s size is %d\n",size);
-
-	// Since the descriptor base addresss is virtual, after myltiplying 4096 to it,
-	// we will go to that address to get the checkpoint mapping array.
-
+	// Descriptor base addresss is virtual.
 	uint64_t checkpointMappingArray= containerSuperBlk.DescriptorBase* containerSuperBlk.BlockSize;
-	//fseek to that address
-	fseek(apfs,checkpointMappingArray,SEEK_SET);
-	printf("The starting addresss of checkpoint mapping area is %d and in hex is: %x\n",ftell(apfs),ftell(apfs));
-
+	fseek(apfs,checkpointMappingArray,SEEK_SET);  // Checkpoint Mapping Array
+	    
 	//Now fread the checkpoint mapping array. It i a super block array of size 4096 bytes.
-	//Need to read the header to get checksum and xid and body to get the Magic number.
-	//Size of the array will be descriptor blocks from teh superblock at block 0.
-	int recentValidSuperblock =0;
-	int validSuperBlockAddress=0;
+	//Need to read the header to get checksum and xid.
+	
 	for(int checkpointMappingItr = (containerSuperBlk.DescriptorBlocks) - 1;checkpointMappingItr >= 0;checkpointMappingItr--)
 	{
 		fseek(apfs,checkpointMappingItr*containerSuperBlk.BlockSize,SEEK_CUR);
-		APFS_BH block_header_chkMap = {0};
+		
 
 		if ((size = fread(&block_header_chkMap, 1, sizeof(block_header_chkMap), apfs)) < 0) 
 		{
-			printf("Error reading from APFS File! [%d] size = %lu\n", size, sizeof(block_header_chkMap));
+			printf("Error reading block_header_chkMap! size = %lu\n",sizeof(block_header_chkMap));
 			return containerSuperBlk;
 		}
-		printf("Parsed the Container SUperblock Header. Size = %u\n", size);
-
 
 		if(block_header_chkMap.block_type == 1)
 		{
@@ -82,61 +234,46 @@ APFS_SuperBlk findValidSuperBlock(FILE *apfs)
 			{
 				recentValidSuperblock=block_header_chkMap.version;
 				//Now check for checksum;
-				//Check for magic Number
-				char ch[4]={""};
-				char ch2[4]={"NXSB"};
-				fread(ch,4,1,apfs);
-				if(strncmp(ch,ch2,sizeof(ch)) == 0)
-					printf("It is a superblock\n");
-				else
-					continue; 
-				//Store this address in a variable to go to this valid superblock.
-				validSuperBlockAddress = ftell(apfs) - 36;
-				printf("The address of valid superblock is %d\n",validSuperBlockAddress);
-				printf(" Valid Container Super Block's Checksum = %lu\n", block_header_chkMap.checksum);
-				printf(" Valid Container Super Block's Block ID = %lu\n", block_header_chkMap.block_id);
-				printf(" Valid Container Super Block's Version = %lu\n", block_header_chkMap.version);
-				printf(" Valid Container Super Block's Block Type = %u\n", block_header_chkMap.block_type);
-				printf(" Valid Container Super Block's Flags = %u\n", block_header_chkMap.flags);
-				printf(" Valid Container Super Block's Padding = %u\n", block_header_chkMap.padding);
-				break;
+				
+				validSuperBlockAddress = ftell(apfs) - 32;
+				valid_block_header_chkMap = block_header_chkMap;
+	            containerSize=fread(&validContainerSuperBlk,1,sizeof(validContainerSuperBlk),apfs);
+			}
+			else{
+				if(argv.container == 1)
+				printContainerHeader(block_header_chkMap,ftell(apfs) - 32);
 			}
 		}
 		else
 		{
-			printf("The subtype is not superblock conatiner, hence going to next block in array\n");
 			fseek(apfs,checkpointMappingArray,SEEK_SET);
 
 		}
 	}
-	return containerSuperBlk;
+	
+	if(argv.container == 1)
+	printContainerSuperBlock(containerSuperBlk,validSuperBlockAddress,containerSize,valid_block_header_chkMap);
+	return validContainerSuperBlk;
 }
 
-omap_phys_t parseValidContainerSuperBlock(FILE *apfs,APFS_SuperBlk containerSuperBlk)
-{
-	//get the omapid and get the volume ids.
-	//Getting the volume id.
-	int numberOfVolumes = -1;
-	for(int fsidItr=0;fsidItr<100;fsidItr++)
-	{
-		if(containerSuperBlk.VolumesIdents[fsidItr] !=0)
-		{
-			numberOfVolumes++;
-		}
-		else
-			break;
-	}
-
+/*
+   Input Parameters: FILE ,APFS_SuperBlk , int
+   Return Type:      omap_phys_t
+   Description: Function takes the container superblock and omap id as the parameter,
+                and seeks to the omap structure's address, reads the structure and returns it, 
+				to be used by findValidVolumeSuperBlock
+                
+*/
+omap_phys_t parseValidContainerSuperBlock(FILE *apfs,APFS_SuperBlk containerSuperBlk, int ObjectsMapIdent )
+{	
 	omap_phys_t omapStructure;
 	//fseek to the omap address.
-	fseek(apfs,containerSuperBlk.ObjectsMapIdent * containerSuperBlk.BlockSize,SEEK_SET);
+	fseek(apfs,ObjectsMapIdent * containerSuperBlk.BlockSize,SEEK_SET);
 	unsigned int sizeofOmapStructure = 0;
 	if ((sizeofOmapStructure = fread(&omapStructure, 1, sizeof(omapStructure), apfs)) < 0) {
 		printf("Error reading from apfs File! [%d] size = %lu\n", sizeofOmapStructure, sizeof(omapStructure));
 		return omapStructure;
 	}
-	printf("Parsed the OMAP Structure of Container Super Block of Size = %u\n", sizeofOmapStructure);
-	printf("Tree oid is: %lu\n",omapStructure.om_tree_oid);	
 	return omapStructure;
 }
 
@@ -336,87 +473,306 @@ void parseFSObjects(uint8_t fileObjectType,FILE* apfs,uint16_t keyLength,int val
 	}
 }
 
-apfs_superblock_t findValidVolumeSuperBlock(FILE *apfs,omap_phys_t omapStructure,APFS_SuperBlk containerSuperBlk)
+/*
+ * Compares two arrays by byte
+ *
+ * Returns -1 if the first array is larger
+ * Returns 0  if the arrays are identical
+ * Returns 1  if the second array is larger
+ */
+int compArray(uint8_t* firstArray, int firstArrayLen, uint8_t* secondArray, int secondArrayLen)
+{
+	//Compare the array lengths
+	if (firstArrayLen > secondArrayLen)
+		return -1;
+	else if (firstArrayLen < secondArrayLen)
+		return 1;
+
+	//Compare the bytes of the array
+	for (int index = 0; index < firstArrayLen; index++)
+	{
+		if (firstArray[index] > secondArray[index])
+			return -1;
+		else if (firstArray[index] < secondArray[index])
+			return 1;
+	}
+
+	return 0;
+}
+
+/*
+ * Searches for the given key in the BTree
+ *
+ * Parameters
+ * 
+ * FILE apfsImage:		A file stream for the APFS disk image
+ * uint32_t blockSize:	Typically 4096
+ * uint64_t bNodeAddr:	The physical address of the B-Tree
+ * uint8_t* searchKey:	A byte array containing the search key
+ * uint searchKeyLen:	The length of the key byte array
+ * uint8_t* returnVal:  An allocated byte array to store the result in
+ * uint returnValueLen:	The expected length of the return value
+ * uint64_t& nextBNode:	An address to the next layer in the BTree. May be a physical or virtual address.
+ *
+ * Return Value
+ * 
+ * -1:	Key not found or value length doesn't match.
+ *  0:	Key found, value is stored in returnValue.
+ *  1:	Node is internal and the key may be in a child node. Address to the next BNode is stored in nextBNode.
+ *
+ * Populates returnVal with:
+ * NULL if the value is not found or valueLen does not match the actual value length.
+ * The value if it is found.
+ */
+ 
+int searchBTree(FILE *apfsImage, uint32_t blockSize, uint8_t *searchKey,uint searchKeyLen,uint returnValueLen, 
+                uint64_t *nextBNode,btree_node_phys_t bNodeStruct,int endOfOmapBtree,uint64_t *leafValAddress)
+{
+	//Read node flags
+	int rootNode = bNodeStruct.btn_flags & 1;
+	int leafNode = (bNodeStruct.btn_flags >> 1) & 1;
+	int fixedSize = (bNodeStruct.btn_flags >> 2) & 1;
+
+	//The table of contents always starts 56 bytes into the structure
+	//The node header is 32 bytes and the preceeding fields of the body are 24 bytes
+	int tableStartAddr = ftell(apfsImage);
+	//The key area starts after the table of contents (and grows downward)
+	int keyStartAddr = tableStartAddr + bNodeStruct.btn_table_space.len;
+    
+	//The value area starts at the end of the node (and grows upward)
+	int valueStartAddr =endOfOmapBtree;//bNodeAddr + blockSize;
+
+	//If the node is the root, account for the info trailer 
+	if (rootNode)
+		valueStartAddr -= sizeof(btree_info_t);
+
+
+	//Create pointers for both a fixed length and variable length table of contents
+	toc_entry_fixed_t *tableEntriesFixed = NULL;
+	toc_entry_varlen_t *tableEntriesVarLen = NULL;
+
+	//Read the table of contents into an array
+	if (fixedSize)
+	{
+		int tableSize = bNodeStruct.btn_nkeys * sizeof(toc_entry_fixed_t);
+		tableEntriesFixed = malloc(tableSize);
+		fread(tableEntriesFixed, 1, tableSize, apfsImage);
+	}
+	else
+	{
+		int tableSize = bNodeStruct.btn_nkeys * sizeof(toc_entry_varlen_t);
+		tableEntriesVarLen = malloc(tableSize);
+		fread(tableEntriesVarLen, 1, tableSize, apfsImage);
+	}
+
+	//Iterate through the table
+	for (int entry_index = 0; entry_index < bNodeStruct.btn_nkeys; entry_index++)
+	{
+		uint16_t keyOff, dataOff, keyLen, dataLen;
+
+		//Find the offset and length of the key and value
+		if (fixedSize)
+		{
+			keyOff = tableEntriesFixed[entry_index].key_off;
+			dataOff = tableEntriesFixed[entry_index].data_off;
+			//Set the key length to the search key length in case the user
+			//only wants to compare a portion of the key
+			keyLen = searchKeyLen;
+			dataLen = returnValueLen;
+		}
+		else
+		{
+			keyOff = tableEntriesVarLen[entry_index].key_off;
+			dataOff = tableEntriesVarLen[entry_index].data_off;
+			keyLen = tableEntriesVarLen[entry_index].key_len;
+			dataLen = tableEntriesVarLen[entry_index].data_len;
+		}
+
+		//Read the key
+		uint8_t key[keyLen];
+		int keyAddr = keyStartAddr + keyOff;
+		fseek(apfsImage, keyAddr, SEEK_SET);
+		fread(&key, 1, keyLen, apfsImage);
+
+		//Compare the two key arrays
+		int keyComp = compArray(searchKey, searchKeyLen, key, keyLen);
+
+		//If this node is not a leaf, get the address to the next layer
+		if (!leafNode)
+		{
+			//If the key is smaller than this entry, go to the child of the previous entry
+			if (keyComp == 1)
+			{
+				//If this is the first entry in the BNode, then the search key is not in the Tree
+				if (entry_index == 0)
+					return -1;
+				//Otherwise, read and return the address to the next BNode
+				else
+				{
+					//Find the data offset of the previous entry
+					if (fixedSize)
+						dataOff = tableEntriesFixed[entry_index-1].data_off;
+					else
+						dataOff = tableEntriesVarLen[entry_index-1].data_off;
+
+					int valueAddr = valueStartAddr - dataOff;
+					fseek(apfsImage, valueAddr, SEEK_SET);
+					fread(nextBNode, 1, sizeof(uint64_t), apfsImage);
+
+					return 1;
+				}
+			}
+		}
+		//If this node is a leaf, find the search key
+		else
+		{
+			//If the keys match, return the value
+			if(keyComp == 0)
+			{
+				//Return -1 if the value length does not match the expected length
+				if (returnValueLen != dataLen)
+					return -1;
+
+				//Read the value
+				int valueAddr = valueStartAddr - dataOff;
+				tApFS_0B_ObjectsMap_Value_t value;
+				fseek(apfsImage, valueAddr, SEEK_SET);
+				fread(&value,1,16,apfsImage);
+				*leafValAddress = value.Address;
+				return 0;
+			}
+		}
+	}
+
+	//If no matches were found, the key is not in the B-Tree
+	return -1;
+}
+
+/*
+ * Searches an Omap for the physical address of the object corresponding to the given virtual address
+ *
+ * Parameters
+ * 
+ * FILE apfsImage:		A file stream for the APFS disk image
+ * uint32_t blockSize:	Typically 4096
+ * uint64_t omapAddr:	The physical address of the OMap
+ * uint64_t oid:		The virtual address of the object to search for
+ *
+ * Return Value
+ * 
+ *  NULL if the OID is not found
+ *  A pointer to the omap value struct if the OID is found
+ */
+ 
+uint8_t searchOmap(FILE *apfsImage, uint32_t blockSize, uint64_t oid,btree_node_phys_t omapBTree,int endOfOmapBtree,uint64_t *leafValAddress)
+{
+	//Omap keys are supposed to be 16 bytes (oid and xid)
+	//We will ignore the xid and only pass the 8 byte oid
+	uint keyLen = 8;
+	//The return value is as 16 byte tApFS_0B_ObjectsMap_Value_t struct
+	uint valLen = 16;
+	uint64_t nextBNode;
+	//Search the B-Tree for the key
+	int result = searchBTree(apfsImage, blockSize,(uint8_t*)(&oid), keyLen, valLen, &nextBNode,omapBTree,endOfOmapBtree,leafValAddress);
+
+	//Key not found
+	if (result == -1)
+		return -1;
+	//Key found
+	else if (result == 0)
+		return 0;
+	//Key in lower level of B-Tree
+	else if (result == 1)
+	{
+		//Convert the virtual B-Node address to a physical one
+		nextBNode *= blockSize;
+		fseek(apfsImage,nextBNode,SEEK_SET);
+		
+	    btree_node_phys_t omapBTree;
+	    uint64_t volumeSBAdress=0;
+	    int endOfOmapBtree = ftell(apfsImage) + 4096;
+	    omapBTree = readAndPrintBtree(apfsImage);  
+		
+		return searchOmap(apfsImage, blockSize,oid,omapBTree,endOfOmapBtree,&volumeSBAdress);
+	}
+}
+
+/*
+   Input Parameters: FILE* , uint64_t ,APFS_SuperBlk ,command_line_args
+   Return Type:      apfs_superblock_t
+   Description: Function seeks to the physical address of volume superblock ,
+                and prints the details of volume superblock.
+				If -v option is given : Details of all Volumes are printed.
+				If -v <Vol Id> is given :  ONly that particular Vol Id's details are printed.
+                
+*/
+apfs_superblock_t readAndPrintVolumeSuperBlock(FILE* apfs, uint64_t volumeSBAdress,APFS_SuperBlk containerSuperBlk,command_line_args args)
+{
+	apfs_superblock_t volumeSuperBlock;
+	// Go to the Address of Volume Super Block and print it.
+		fseek(apfs,volumeSBAdress * containerSuperBlk.BlockSize,SEEK_SET);
+	    unsigned int sizeofVolSuperBlock = 0;
+		uint32_t volumeSuperBlkAddress =ftell(apfs);
+	    if ((sizeofVolSuperBlock = fread(&volumeSuperBlock, 1, sizeof(volumeSuperBlock), apfs)) < 0) {
+		    printf("Error reading from apfs File! [%d] size = %lu\n", sizeofVolSuperBlock, sizeof(volumeSuperBlock));
+		    return volumeSuperBlock;
+	    }
+		if(args.volume == 1 && args.volume_ID == 0 )
+		printVolumeSuperBlock(volumeSuperBlock,volumeSuperBlkAddress, sizeofVolSuperBlock);
+	    else if (args.volume == 1 && args.volume_ID != 0 )
+		{
+		  if(args.volume_ID == volumeSuperBlock.apfs_o.o_oid)
+			 printVolumeSuperBlock(volumeSuperBlock,volumeSuperBlkAddress, sizeofVolSuperBlock);
+		     return volumeSuperBlock;
+		}
+		return volumeSuperBlock;
+}
+
+/*
+   Input Parameters: FILE* , omap_phys_t ,APFS_SuperBlk ,command_line_args
+   Return Type:      apfs_superblock_t
+   Description: 
+                
+*/
+
+apfs_superblock_t findValidVolumeSuperBlock(FILE *apfs,omap_phys_t omapStructure,APFS_SuperBlk containerSuperBlk,command_line_args args)
 {
 	apfs_superblock_t volumeSuperBlock;
 	// go to tree adress
 	fseek(apfs,	omapStructure.om_tree_oid * containerSuperBlk.BlockSize,SEEK_SET);
-
 	btree_node_phys_t omapBTree;
+
+	int startOfValueSection=0;
 	int endOfOmapBtree = ftell(apfs) + 4096;
-	printf(" EndOfBTree is: %d",endOfOmapBtree);
 	omapBTree = readAndPrintBtree(apfs);
-
-	// Now for the table length loop to get the key value pairs.
-	// Check if the kv flag is set to determine if it is kvoff or kloc
-	kvoff_t keyValueStruct[omapBTree.btn_table_space.len/4] ;
-	for(int i=0;i<omapBTree.btn_table_space.len;i=i+4)
+	uint64_t volumeSBAdress=0;
+	uint64_t oid = 0;
+	if(args.volume == 1 && args.volume_ID != 0 )
 	{
-		unsigned int sizeofkvoff_t = 0;
-		sizeofkvoff_t=fread(&keyValueStruct,1,4,apfs);
-		if(keyValueStruct->k !=0 || keyValueStruct->v != 0)
+		oid = args.volume_ID;
+		uint8_t volSB = searchOmap(apfs, containerSuperBlk.BlockSize,oid,omapBTree,endOfOmapBtree,&volumeSBAdress);
+		if( volSB == -1)
 		{
-			printf("Parsed sizeofkvoff_t of table of COntents! Size = %u\n", sizeofkvoff_t);
-			printf("btn_data_first_key = %" PRIu16"\n",keyValueStruct->k);	
-			printf("btn_data_first_val = %d\n", keyValueStruct->v);	
+			printf(" Volume ID %lu does not exist!!",oid);
+			return volumeSuperBlock;
 		}
-
-
+	    volumeSuperBlock = readAndPrintVolumeSuperBlock(apfs,volumeSBAdress,containerSuperBlk,args);
+	
+	}else if(args.volume == 1 && args.volume_ID == 0 ){
+		for(int noOfVolItr =0;noOfVolItr < NX_MAX_FILE_SYSTEMS;noOfVolItr++)
+		{
+			if(containerSuperBlk.VolumesIdents[noOfVolItr] == 0)
+				break;
+			else
+			{
+			oid = containerSuperBlk.VolumesIdents[noOfVolItr];
+			uint8_t volSB = searchOmap(apfs, containerSuperBlk.BlockSize,oid,omapBTree,endOfOmapBtree,&volumeSBAdress);
+	        readAndPrintVolumeSuperBlock(apfs,volumeSBAdress,containerSuperBlk,args);
+	
+			}
+		}
 	}
-	//Add the loop for all volumes
-	int keyStartAddress = ftell(apfs);
-	tApFS_0B_ObjectsMap_Key_t key;
-	tApFS_0B_ObjectsMap_Value_t value;
-	fread(&key,1,16,apfs);
-	printf("The oid and xid are %lu and %lu\n",key.ObjectIdent,key.Transaction);
-
-	// check if it is root node or leaf node
-	// find the info address for root node.
-	int startOfBTreeInfo = endOfOmapBtree - 56;
-	printf(" startOfBTreeInfo is: %d\n",startOfBTreeInfo);
-	fseek(apfs,startOfBTreeInfo,SEEK_SET);
-	fread(&value,1,16,apfs);
-	printf("The flag size and physicall address are %u, %u and %x and in decimal %d\n",value.Flags,value.Size,value.Address,value.Address);
-
-	//Go to the Apfs Block
-	fseek(apfs,value.Address * containerSuperBlk.BlockSize,SEEK_SET);
-
-	unsigned int sizeofVolSuperBlock = 0;
-	printf("Printing the ftell at the beginning of the block %d\n",ftell(apfs));
-	if ((sizeofVolSuperBlock = fread(&volumeSuperBlock, 1, sizeof(volumeSuperBlock), apfs)) < 0) {
-		printf("Error reading from apfs File! [%d] size = %lu\n", sizeofVolSuperBlock, sizeof(volumeSuperBlock));
-		return volumeSuperBlock;
-	}
-	printf("Parsed APFS Size = %u\n", sizeofVolSuperBlock);
-	printf("Printing the ftell after the super block %d and in hex it is %x \n",ftell(apfs),ftell(apfs));
-	printf("Checksum =");
-	for(int i=0;i<8;i++)
-	{
-		printf("%x",volumeSuperBlock.apfs_o.o_cksum[i]);
-	}
-	printf("\n");
-
-	printf("OID = %lu\n", volumeSuperBlock.apfs_o.o_oid);
-	printf("XID = %lu\n", volumeSuperBlock.apfs_o.o_xid);
-
-	char magicApfs[4]={""};
-	magicApfs[0] = volumeSuperBlock.apfs_magic >> 24;
-	magicApfs[1] = volumeSuperBlock.apfs_magic >> 16;
-	magicApfs[2] = volumeSuperBlock.apfs_magic >> 8;
-	magicApfs[3] = volumeSuperBlock.apfs_magic;
-	printf("Volume Magic Numer is:");
-
-	for(int i=3;i>=0;i--)
-	{
-		printf("%c",magicApfs[i]);
-	}
-	printf("\n");
-	printf("APFS Index %u=\n",volumeSuperBlock.apfs_fs_index);
-	printf("APFS Features %lu=\n",volumeSuperBlock.apfs_features);
-	printf("APFS Compatible Features %lu=\n",volumeSuperBlock.apfs_readonly_compatible_features);
-	printf("APFS Omap ID %lu\n",volumeSuperBlock.apfs_omap_oid);
-
-
+		
 	return volumeSuperBlock;
 }
 
@@ -534,7 +890,7 @@ void parseFSTree(FILE* apfs,btree_node_phys_t fsBtree,int endOfOmapBtreeBtree)
 	}//for the table of contents
 }
 
-void parse_APFS( int block_no )
+void parse_APFS( int block_no,command_line_args args)
 {
 	FILE *apfs = NULL;
 	APFS_SuperBlk containerSuperBlk;
@@ -545,6 +901,7 @@ void parse_APFS( int block_no )
 	APFS_SuperBlk super_blk = {0};
 	char filename[16] = {0};
 	unsigned int size = 0;
+	uint32_t blockSize =0;
 
 	snprintf(filename, sizeof(filename), "decompressed%d", block_no);
 
@@ -558,9 +915,9 @@ void parse_APFS( int block_no )
 		return;
 	}
 
-	containerSuperBlk=findValidSuperBlock(apfs);
-	omapStructure = parseValidContainerSuperBlock(apfs,containerSuperBlk);
-	volumeSuperBlock = findValidVolumeSuperBlock(apfs,omapStructure,containerSuperBlk);
+	containerSuperBlk=findValidSuperBlock(apfs,args);
+	omapStructure = parseValidContainerSuperBlock(apfs,containerSuperBlk, containerSuperBlk.ObjectsMapIdent);
+	volumeSuperBlock=findValidVolumeSuperBlock(apfs,omapStructure,containerSuperBlk,args);
 	fsTree=parseAPFSVolumeBlock(apfs,volumeSuperBlock,containerSuperBlk,&endOfOmapBtreeBtree);
 	parseFSTree(apfs,fsTree,endOfOmapBtreeBtree);
 }

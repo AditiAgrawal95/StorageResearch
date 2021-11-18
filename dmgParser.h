@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 //Structues copied from newosxbook.com
 //https://web.archive.org/web/20130317050948/http://newosxbook.com/DMG.html
@@ -85,15 +86,27 @@ typedef struct {
 }BLKXTable;
 #pragma pack()
 
+typedef struct command_line_options {
+	uint8_t all;
+	uint8_t container;
+	uint8_t volume;
+	uint32_t volume_ID;
+	uint8_t file;
+	unsigned char file_name[256];
+	uint8_t fs_structure;
+} command_line_args;
 
 FILE* readImageFile(FILE*, char* dmg_path);  // To open the file
 FILE* parseDMGFile(FILE*, UDIFResourceFile*);
 FILE* readXMLOffset(FILE*, UDIFResourceFile*, char**);
- void build_decoding_table();
- void base64_cleanup();
- char* base64_encode(const char*,size_t ,size_t* );
+void build_decoding_table();
+void base64_cleanup();
+char* base64_encode(const char*,size_t ,size_t* );
 unsigned char* base64_decode(const char* ,size_t ,size_t* );
 BLKXTable* decodeDataBlk(const char*);
 void readDataBlks(BLKXTable*,FILE*, int);
+int checkCommandLineArguments(char** argv, int argc);
+void printUsage();
+command_line_args fillCommandLineArguments(char **argv,int argc);
 
 

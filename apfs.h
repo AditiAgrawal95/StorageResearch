@@ -12,10 +12,14 @@
 #define APFS_MAX_HIST 8
 #define APFS_VOLNAME_LEN 256
 #define APFS_MODIFIED_NAMELEN 32
+#define NX_MAX_FILE_SYSTEMS 100
+
 
 #define OBJ_ID_MASK 0x0fffffffffffffffULL
 #define OBJ_TYPE_MASK 0xf000000000000000ULL
 #define OBJ_TYPE_SHIFT 60
+#define OBJECT_TYPE_MASK 0x0000ffff
+#define OBJECT_TYPE_FLAGS_MASK 0xffff0000
 
 #define J_DREC_LEN_MASK 0x000003ff
 #define J_DREC_HASH_MASK 0xfffff400
@@ -58,8 +62,6 @@ typedef uint32_t cp_key_os_version_t;
 typedef uint16_t cp_key_revision_t;
 typedef uint32_t crypto_flags_t;
 typedef unsigned char uuid_t[16];
-
-
 
 typedef struct apfs_block_header {
 	uint64_t checksum;
@@ -276,6 +278,20 @@ struct nloc {
 	uint16_t len;
 };
 typedef struct nloc nloc_t;
+
+struct toc_entry_varlen {
+	uint16_t key_off;
+	uint16_t key_len;
+	uint16_t data_off;
+	uint16_t data_len;
+};
+typedef struct toc_entry_varlen toc_entry_varlen_t;
+
+struct toc_entry_fixed {
+	uint16_t key_off;
+	uint16_t data_off;
+};
+typedef struct toc_entry_fixed toc_entry_fixed_t;
 
 struct kvloc {
 	nloc_t k;
@@ -542,13 +558,17 @@ struct fs_obj {
 
 //Function Declarations
 
-void parse_APFS( int );	
-APFS_SuperBlk findValidSuperBlock( FILE * );
-omap_phys_t parseValidContainerSuperBlock( FILE *,APFS_SuperBlk );
-apfs_superblock_t findValidVolumeSuperBlock( FILE *,omap_phys_t,APFS_SuperBlk );
+void parse_APFS( int , command_line_args );	
+APFS_SuperBlk findValidSuperBlock( FILE *,command_line_args );
+omap_phys_t parseValidContainerSuperBlock( FILE *,APFS_SuperBlk , int);
+apfs_superblock_t findValidVolumeSuperBlock( FILE *,omap_phys_t,APFS_SuperBlk,command_line_args );
 btree_node_phys_t parseAPFSVolumeBlock(FILE *, apfs_superblock_t,APFS_SuperBlk,int*);
 btree_node_phys_t readAndPrintBtree(FILE*);
 void parseFSTree(FILE*,btree_node_phys_t ,int);
 void parseFSObjects(uint8_t,FILE*,uint16_t,int,uint16_t,uint16_t,struct fs_obj*);
+int compArray(uint8_t*, int, uint8_t*, int);
+int searchBTree(FILE *, uint32_t, uint8_t *,uint,uint, uint64_t *,btree_node_phys_t,int,uint64_t *);
+uint8_t searchOmap(FILE *, uint32_t , uint64_t ,btree_node_phys_t,int,uint64_t*);
+apfs_superblock_t readAndPrintVolumeSuperBlock(FILE*, uint64_t,APFS_SuperBlk,command_line_args);
 
 
