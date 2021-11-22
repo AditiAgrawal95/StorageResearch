@@ -642,6 +642,21 @@ int searchBTree(FILE *apfsImage, uint32_t blockSize, uint64_t bNodeAddr,  uint8_
 					return 1;
 				}
 			}
+			//If the search key is greater than or equal all entries, traverse to the last node 
+			else if (entry_index == bNodeStruct.btn_nkeys-1)
+			{
+				//Find the data offset of the previous entry
+				if (fixedSize)
+					dataOff = tableEntriesFixed[entry_index].data_off;
+				else
+					dataOff = tableEntriesVarLen[entry_index].data_off;
+
+				int valueAddr = valueStartAddr - dataOff;
+				fseek(apfsImage, valueAddr, SEEK_SET);
+				fread(nextBNode, 1, sizeof(uint64_t), apfsImage);
+
+				return 1;
+			}
 		}
 		//If this node is a leaf, find the search key
 		else
@@ -802,7 +817,7 @@ void parse_APFS( int block_no )
 	printf("\n\nB-TREE TRAVERSAL TEST\n");
 	printf("---------------------\n");
 
-	int searchOID = 1028;
+	int searchOID = 1145;
 	tApFS_0B_ObjectsMap_Value_t *omapResult = searchOmap(apfs, containerSuperBlk.BlockSize, bTreeByteAddr, searchOID);
 	printf("Searching for oid %i\n", searchOID);
 
