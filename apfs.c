@@ -586,7 +586,10 @@ int searchBTree(FILE *apfsImage, uint32_t blockSize, uint64_t bNodeAddr,  uint8_
 	}
 
 	//Iterate through the table
-	for (int entry_index = 0; entry_index < bNodeStruct.btn_nkeys; entry_index++)
+	//Start from the end so that the first match is the latest version, since the B-Tree is sorted
+	int maxTocIndex = bNodeStruct.btn_nkeys - 1;
+
+	for (int entry_index = maxTocIndex; entry_index >= 0; entry_index--)
 	{
 		uint16_t keyOff, dataOff, keyLen, dataLen;
 
@@ -620,30 +623,8 @@ int searchBTree(FILE *apfsImage, uint32_t blockSize, uint64_t bNodeAddr,  uint8_
 		//If this node is not a leaf, get the address to the next layer
 		if (!leafNode)
 		{
-			//If the key is smaller than this entry, go to the child of the previous entry
-			if (keyComp == 1)
-			{
-				//If this is the first entry in the BNode, then the search key is not in the Tree
-				if (entry_index == 0)
-					return -1;
-				//Otherwise, read and return the address to the next BNode
-				else
-				{
-					//Find the data offset of the previous entry
-					if (fixedSize)
-						dataOff = tableEntriesFixed[entry_index-1].data_off;
-					else
-						dataOff = tableEntriesVarLen[entry_index-1].data_off;
-
-					int valueAddr = valueStartAddr - dataOff;
-					fseek(apfsImage, valueAddr, SEEK_SET);
-					fread(nextBNode, 1, sizeof(uint64_t), apfsImage);
-
-					return 1;
-				}
-			}
-			//If the search key is greater than or equal all entries, traverse to the last node 
-			else if (entry_index == bNodeStruct.btn_nkeys-1)
+			//If the search key is larger than or equal to this entry, go to its child node
+			if (keyComp == -1 || keyComp == 0)
 			{
 				//Find the data offset of the previous entry
 				if (fixedSize)
