@@ -104,7 +104,7 @@ void base64_cleanup();
 char* base64_encode(const char*,size_t ,size_t* );
 unsigned char* base64_decode(const char* ,size_t ,size_t* );
 BLKXTable* decodeDataBlk(const char*);
-void readDataBlks(BLKXTable*,FILE*, int);
+void readDataBlks(BLKXTable*, FILE*, char*);
 int checkCommandLineArguments(char** argv, int argc);
 void printUsage();
 command_line_args fillCommandLineArguments(char **argv,int argc);

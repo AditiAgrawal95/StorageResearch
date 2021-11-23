@@ -558,7 +558,7 @@ struct fs_obj {
 
 //Function Declarations
 
-void parse_APFS( int , command_line_args );	
+void parse_APFS(command_line_args, char*);	
 APFS_SuperBlk findValidSuperBlock( FILE *,command_line_args );
 omap_phys_t parseValidContainerSuperBlock( FILE *,APFS_SuperBlk , int);
 apfs_superblock_t findValidVolumeSuperBlock( FILE *,omap_phys_t,APFS_SuperBlk,command_line_args );

@@ -3,20 +3,19 @@
 //   Date:18-09-2021 
 
 #include <stdio.h>
-#include <string.h>
 #include <zlib.h>
-#include <libxml/tree.h>
-#include <libxml/parser.h>
 #include "dmgParser.h"
 #include "apfs.h"
+#include "pList.h"
 
+//Portable endianness conversion
 #if defined(WIN32) || defined(__WIN32) ||defined(__WIN32__) || defined(__NT__) ||defined(_WIN64)    
-           #	include <Windows.h>
-           #define be64toh(x) _byteswap_uint64(x)    
+    #include <Windows.h>
+    #define be64toh(x) _byteswap_uint64(x)    
 #elif __linux__
-      #	include <endian.h>
+    #include <endian.h>
 #elif __unix__ // all unixes not caught above
-      #	include <endian.h>
+    #include <endian.h>
 #endif
 
 #define INFLATE_BUF_LEN 4096
@@ -24,22 +23,21 @@
 
 FILE* readImageFile(FILE* stream, char* dmg_path)
 {
- #if defined(WIN32) || defined(__WIN32) ||defined(__WIN32__) || defined(__NT__) ||defined(_WIN64)   
+#if defined(WIN32) || defined(__WIN32) ||defined(__WIN32__) || defined(__NT__) ||defined(_WIN64)   
     size_t bufferSize;
     errno_t e=_dupenv_s(&dmg_path, &bufferSize,"bigandsmall");
-     if (e || dmg_path == nullptr)
-         printf("The path is not found.");     
+
+    if (e || dmg_path == nullptr)
+        printf("The path is not found.");     
 #endif
+
     stream = fopen(dmg_path, "r");
 
-    if (stream != 0)
+    if (stream == 0)
     {
-        printf("The file '%s' was opened\n", dmg_path);
+        printf("Failed to open the file '%s'\n", dmg_path);
     }
-    else
-    {
-        printf("The file '%s' was not opened\n", dmg_path);
-    }
+
     return stream;
 }
 
@@ -50,14 +48,10 @@ FILE* parseDMGTrailer(FILE* stream, UDIFResourceFile* dmgTrailer)
     if (fseek(stream, -trailerSize, SEEK_END)) {
         printf("Couldn't seek to the desired position in the file.\n");
     }
-    else
-    {
-        // printf("Seeked to the beginning of Trailer.\n");
-
+    else {
         int bytesRead = fread(dmgTrailer, trailerSize, 1, stream);
-        // printf("The bytes read %d\n", bytesRead);
-        
     }
+
     return stream;
 }
 
@@ -67,81 +61,61 @@ FILE* readXMLOffset(FILE* stream, UDIFResourceFile* dmgTrailer, char** plist)
     *plist = (char*)malloc(be64toh(dmgTrailer->XMLLength));      // Allocate memory to plist char array.
     fread(*plist, be64toh(dmgTrailer->XMLLength), 1, stream);    // Read the xml.
 
-    //printf("The xml is : %s", *plist);
     return stream;
 }
 
 BLKXTable* decodeDataBlk(const char* data)
 {
     size_t decode_size = strlen(data);
-    printf("The size of data is : %lu\n", decode_size);
     unsigned char* decoded_data = base64_decode(data, decode_size, &decode_size);
-    printf("DEcode structure is %s\n", decoded_data);
 
     BLKXTable* dataBlk = NULL;
     dataBlk = (BLKXTable*)decoded_data;
 
-    // we can remove these print statements later. Keeping them for reference.
-    printf("Version: %u\n", be32toh(dataBlk->Version));
-    printf("Sector count: %lu \n", be64toh(dataBlk->SectorCount));
-    printf("No. Block Chunks: %u \n", be32toh(dataBlk->NumberOfBlockChunks));
-
-    printf("BLKXChunkEntry :\n");
-    printf("BLK0 Entry type: %x\n", be32toh(dataBlk->chunk[0].EntryType));
-    printf("BLK0 SectorNumber: %lu\n", be64toh(dataBlk->chunk[0].SectorNumber));
-    printf("BLK0 Sector Count: %lu\n", be64toh(dataBlk->chunk[0].SectorCount));
-    printf("BLK0 Compressed Offset: %lu\n", be64toh(dataBlk->chunk[0].CompressedOffset));
-    printf("BLK0 Compressed Length: %lu\n", be64toh(dataBlk->chunk[0].CompressedLength));
-    printf("\nBLK1 Entry type: %x\n", be32toh(dataBlk->chunk[1].EntryType));
-    printf("BLK1 SectorNumber: %lu\n", be64toh(dataBlk->chunk[1].SectorNumber));
-    printf("BLK1 Sector Count: %lu\n", be64toh(dataBlk->chunk[1].SectorCount));
-    printf("BLK1 Compressed Offset: %lu\n", be64toh(dataBlk->chunk[1].CompressedOffset));
-    printf("BLK1 Compressed Length: %lu\n", be64toh(dataBlk->chunk[1].CompressedLength));
-
     return dataBlk;
 }
 
-int decompress_to_file(char *compressed, unsigned long comp_size, int block_no)
+int decompress_to_file(char *compressed, unsigned long comp_size, char* filename)
 {
-        z_stream inflate_stream = {0};
-        FILE *output_buf = NULL;
-        char decompressed[INFLATE_BUF_LEN] = {0}, filename[16] = {0};
+    z_stream inflate_stream = {0};
+    FILE *output_buf = NULL;
+    char decompressed[INFLATE_BUF_LEN] = {0};
 	unsigned long remaining = 0;
-        int ret = 0;
+    int ret = 0;
 
-        snprintf(filename, sizeof(filename), "decompressed%d", block_no);
+    inflate_stream.zalloc = Z_NULL;
+    inflate_stream.zfree  = Z_NULL;
+    inflate_stream.opaque = Z_NULL;
 
-        inflate_stream.zalloc = Z_NULL;
-        inflate_stream.zfree  = Z_NULL;
-        inflate_stream.opaque = Z_NULL;
+    inflate_stream.next_in  = compressed;
+    inflate_stream.avail_in = comp_size;
 
-        inflate_stream.next_in  = compressed;
-        inflate_stream.avail_in = comp_size;
+    if ( (ret = inflateInit(&inflate_stream)) != Z_OK ) {
+            printf("Error Initializing Inflate! [Ecode - %d]\n", ret);
+            return -1;
+    }
 
-        if ( (ret = inflateInit(&inflate_stream)) != Z_OK ) {
-                printf("Error Initializing Inflate! [Ecode - %d]\n", ret);
-                return -1;
+    inflate_stream.next_out  = decompressed;
+    inflate_stream.avail_out = INFLATE_BUF_LEN;
+
+    if ((output_buf = fopen(filename, "a")) == NULL) {
+        printf("Unable to create file decompressed!\n");
+        ret = -1;
+        goto inflate_end;
+    }
+
+    while ((ret = inflate(&inflate_stream,  Z_FINISH )) != Z_STREAM_END) {
+        if ((ret == Z_OK || ret == Z_BUF_ERROR ) && inflate_stream.avail_out == 0) {
+                if (fwrite(decompressed, 1, INFLATE_BUF_LEN, output_buf) == 0) {
+                    printf("Error Writing to output file!\n");
+                    goto close;
+                }
+
+                memset(decompressed, 0, sizeof(decompressed));
+                inflate_stream.next_out  = decompressed;
+                inflate_stream.avail_out = INFLATE_BUF_LEN;
         }
-
-        inflate_stream.next_out  = decompressed;
-        inflate_stream.avail_out = INFLATE_BUF_LEN;
-
-        if ((output_buf = fopen(filename, "a")) == NULL) {
-                printf("Unable to create file decompressed!\n");
-                ret = -1;
-                goto inflate_end;
-        }
-
-        while ((ret = inflate(&inflate_stream,  Z_FINISH )) != Z_STREAM_END) {
-                if ((ret == Z_OK || ret == Z_BUF_ERROR ) && inflate_stream.avail_out == 0) {
-                        if (fwrite(decompressed, 1, INFLATE_BUF_LEN, output_buf) == 0) {
-                                printf("Error Writing to output file!\n");
-                                goto close;
-                        }
-                        memset(decompressed, 0, sizeof(decompressed));
-                        inflate_stream.next_out  = decompressed;
-                        inflate_stream.avail_out = INFLATE_BUF_LEN;
-                } else {
+        else {
 			printf("Error Inflating! [Code - %d]\n", ret);
 			goto close;
 		}
@@ -153,8 +127,7 @@ int decompress_to_file(char *compressed, unsigned long comp_size, int block_no)
 		
 	if (fwrite(decompressed, 1, remaining, output_buf) == 0)
 		printf("Error Writing to output file!\n");
-	else
-		printf("Decompressed Successfully to file '%s' [Dsize: %lu][Fsize: %lu]\n", filename, inflate_stream.total_out, ftell(output_buf));
+
 close:
 	fclose(output_buf);
 inflate_end:
@@ -164,232 +137,26 @@ inflate_end:
 
     
 // This function will be called by printdmgBlocks
-void readDataBlks(BLKXTable* dataBlk,FILE* stream, int block_no)
+void readDataBlks(BLKXTable* dataBlk, FILE* stream, char* filename)
 {
 	int sectorSize = 512;
 	uint8_t* compressedBlk = NULL; 
-	printf("\nThe offset  is %lu\n", be64toh(dataBlk->chunk[0].CompressedOffset));
 
     for (int noOfChunks = 0; noOfChunks < (be32toh(dataBlk->NumberOfBlockChunks)); noOfChunks++)
     {
 	    fseek(stream, be64toh(dataBlk->chunk[noOfChunks].CompressedOffset), SEEK_SET);
 
-	    printf("The value of chunk is: %lu\n", be64toh(dataBlk->chunk[noOfChunks].CompressedOffset));
-	    printf("The offset length is %lu:", be64toh(dataBlk->chunk[noOfChunks].CompressedLength));
-
 	    compressedBlk = (uint8_t*)malloc(be64toh(dataBlk->chunk[noOfChunks].CompressedLength));
 	    size_t result=fread(compressedBlk, 1, be64toh(dataBlk->chunk[noOfChunks].CompressedLength), stream);
 
-	    printf("The result of fread is %lu", result);
-	    printf("The value of chunk entry type is: %x\n", be32toh(dataBlk->chunk[noOfChunks].EntryType));
-	    if (be32toh(dataBlk->chunk[noOfChunks].EntryType) != ENTRY_TYPE_ZLIB) {
-		    printf("Ignoring Non zlib compression for now\n");
-	    } else if (decompress_to_file(compressedBlk, result, block_no) < 0) {
-		    printf("Failed to decompress block\n");
-	    }	
-    }	
-}
-
-//Searches through the siblings of a node for the given type
-xmlNode* findSiblingByType(xmlNode *node, char* type)
-{
-	const xmlChar *nodeType = (const xmlChar*)type;
-
-	//Advance the pointer to its sibling
-	node = node->next;
-
-	while (node != NULL && !xmlStrEqual(node->name, nodeType))
-		node = node->next;
-
-	return node;
-}
-
-//Searches through the siblings of a node for the given content
-xmlNode* findSiblingByContent(xmlDoc *doc, xmlNode *node, char* content)
-{
-	const xmlChar *nodeContent = (const xmlChar*)content;
-
-	for(xmlNode* sibling = node->next; sibling != NULL; sibling = sibling->next)
-	{
-		if (sibling->type == XML_ELEMENT_NODE)
-		{
-			const xmlChar *nodeText = xmlNodeListGetString(doc, sibling->children, 1);
-		
-			if (xmlStrEqual(nodeText, nodeContent))
-				return sibling;
-		}
-
-	}
-
-	return NULL;
-}
-
-//A breadth-first search for an xmlNode with the given contents
-xmlNode* findNodeByText(xmlDoc *doc, xmlNode *root, char *searchText)
-{
-	//Search all siblings
-	xmlNode* sibling = findSiblingByContent(doc, root, searchText);
-
-	if (sibling != NULL)
-		return sibling;
-
-	//Search all children
-	for (xmlNode* sibling = root; sibling != NULL; sibling = sibling->next)
-	{
-		if (sibling->type == XML_ELEMENT_NODE)
-		{
-			xmlNode* node = findNodeByText(doc, sibling->children, searchText);
-
-			if (node != NULL)
-				return node;
-		}
-	}
-
-	//Item not found in this branch
-	return NULL;
-}
-
-char* removeWhiteSpace(char* string)
-{
-	char* copy;
-	int length = strlen(string);
-	int wsCount = 0;
-	int newLength;
-
-	int strIndex = 0;
-	int copyIndex = 0;
-
-	//Count the number of white spaces
-	for (strIndex = 0; strIndex < length; strIndex++)
-	{
-		if (string[strIndex] == ' ' ||
-			string[strIndex] == '\t'||
-			string[strIndex] == '\n'||
-			string[strIndex] == '\r')
-			wsCount++;
-	}
-
-	//Allocate memory for a new string
-	//Add an extra byte for the null terminator character
-	newLength = length - wsCount + 1;
-	copy = (char*) malloc(newLength * sizeof(char));
-
-	//Copy all non-whitespace characters
-	for (strIndex = 0; strIndex <= length; strIndex++)
-	{
-		if (string[strIndex] != ' ' &&
-			string[strIndex] != '\t'&&
-			string[strIndex] != '\n'&&
-			string[strIndex] != '\r')
-		{
-			copy[copyIndex] = string[strIndex];
-			copyIndex++;
-		}
-	}
-
-	return copy;
-}
-
-int printDmgBlocks(xmlDoc *doc, xmlNode *blkxNode,FILE* stream,command_line_args args)
-{
-	xmlNode *array = findSiblingByType(blkxNode, "array");
-
-	if (array == NULL) {
-		printf("plist format is incorrect");
-		return 1;
-	}
-
-	xmlNode *block = findSiblingByType(array->children, "dict");
-
-	if (block == NULL) {
-		printf("plist format is incorrect");
-		return 1;
-	}
-
-	//Print all blocks
-	for (int i = 0; block != NULL; i++)
-	{
-		printf("\nBlock %i\n", i);
-
-		//Find the CFName key
-		xmlNode *node = findSiblingByContent(doc, block->children, "CFName");
-
-		if (node == NULL) {
-			printf("plist format is incorrect");
-			return 1;
-		}
-
-		//Find the CFName content node
-		node = findSiblingByType(node, "string");
-
-		if (node == NULL) {
-			printf("plist format is incorrect");
-			return 1;
-		}
-
-		//Print the block CFName
-		const xmlChar *name = xmlNodeListGetString(doc, node->children, 1);
-		printf("CFName: %s\n", name);
-
-		//Find the data node
-		node = findSiblingByType(node, "data");
-
-		if (node == NULL) {
-			printf("plist format is incorrect");
-			return 1;
-		}
-
-		//Print the block data
-		char *data = xmlNodeListGetString(doc, node->children, 1);
-		char *dataNoWs = removeWhiteSpace(data);
-		BLKXTable* dataBlk = NULL; 
-		dataBlk=decodeDataBlk(dataNoWs);   // decode the data block.
-		readDataBlks(dataBlk, stream, i);     // loop through the chunks to decompress each.
-		
-		if (strstr(name, "Apple_APFS") != NULL) {
-			printf("Parsing APFS\n");
-			parse_APFS(i,args);
-		}
-
-		free(data);
-		free(dataNoWs);
-
-		//Go to the next block
-		block = findSiblingByType(block, "dict");
-	}
-}
-
-//Adapted from the article:
-//https://www.developer.com/database/libxml2-everything-you-need-in-an-xml-library/
-void parseXML(char* xmlStr,FILE* stream,command_line_args args)
-{
-	xmlDoc *doc = NULL;
-	xmlNode *root = NULL;
-
-	//Parse the given string into an XML file
-	doc = xmlParseDoc(xmlStr);
-
-	if (doc == NULL) {
-		printf("error: could not parse file %s\n", xmlStr);
-		return;
-	}
-
-	root = xmlDocGetRootElement(doc);
-
-	//Get the blkx node
-	xmlNode *blkx = findNodeByText(doc, root, "blkx");
-
-	if (blkx == NULL) {
-		printf("error: DMG plist is formatted incorrectly\n");
-		return;
-	}
-
-	//Print the plist blocks
-	printDmgBlocks(doc, blkx,stream,args);
-
-	//Free any libXML2 memory
-	xmlFreeDoc(doc);
-	xmlCleanupParser();
+	    //Only supports zlib compression
+	    //To-Do: support other compression types
+        if (be32toh(dataBlk->chunk[noOfChunks].EntryType) == ENTRY_TYPE_ZLIB) {
+	        if (decompress_to_file(compressedBlk, result, filename) < 0) {
+	            printf("Failed to decompress block\n");
+	        }
+        }
+    }
 }
 
 int checkCommandLineArguments(char** argv, int argc)
@@ -398,17 +165,19 @@ int checkCommandLineArguments(char** argv, int argc)
 	if (argc < 2) {
     	printf("Not Enough Arguments!\n");
     	return 1;
-    }else if(argc > 5){
+    }
+    else if(argc > 5) {
 		printf("Excess arguments entered!\n");
 		result =1;
 	}
-	else if( argc == 3){
+	else if( argc == 3) {
 		if(strcmp(argv[2],"-c") != 0 && strcmp(argv[2],"-C") != 0 && strcmp(argv[2],"-v") != 0 && strcmp(argv[2],"-V") != 0)
 		{
 			printf("Wrong parameter entered!\n");
 			result =1;
 		}
-	}else if (argc == 4){
+	}
+	else if (argc == 4) {
 		if( strcmp(argv[2],"-v") == 0 || strcmp(argv[2],"-V") == 0)
 		{
 			// Make sure that argument contains nothing but digits
@@ -421,11 +190,13 @@ int checkCommandLineArguments(char** argv, int argc)
                     break;
                 }//if
             }//for
-		}//if 
-	}else if(argc == 5 && (strcmp(argv[4],"-fs") != 0 && strcmp(argv[4],"-FS") != 0) ){
+		}//if
+	}
+	else if(argc == 5 && (strcmp(argv[4],"-fs") != 0 && strcmp(argv[4],"-FS") != 0)) {
 		printf("Wrong parameter entered for Volume's file structure! \n");
 		result=1;
 	}
+
 	return result;
 }
 
@@ -443,15 +214,17 @@ command_line_args fillCommandLineArguments(char **argv,int argc)
 	command_line_args args={0};
 	if( strlen(argv[2]) > 0 )
 	{
-		if(strcmp(argv[2],"-c") == 0 || strcmp(argv[2],"-C") == 0)
+		if(strcmp(argv[2],"-c") == 0 || strcmp(argv[2],"-C") == 0) {
 		    args.container = 1;
-	    else if(strcmp(argv[2],"-v") == 0 || strcmp(argv[2],"-V") == 0){
+		}
+	    else if(strcmp(argv[2],"-v") == 0 || strcmp(argv[2],"-V") == 0) {
 	        args.volume = 1;
 			if(argc == 4)
 			{
 				args.volume_ID = atoi(argv[3]);
 			}
-		}else{
+		}
+		else {
 			args.file = 1;
 		     if(argc == 4)
 			{
@@ -459,32 +232,61 @@ command_line_args fillCommandLineArguments(char **argv,int argc)
 			}
 		}
 	}
+
 	if( argc == 5 )
 		args.fs_structure = 1;
 	
 	return args;
 }
+
 int main(int argc, char** argv)
 {
     FILE* stream = NULL;
     UDIFResourceFile dmgTrailer;
     char *plist;
     command_line_args args;
+
     // check command line arguments 
 	int result = checkCommandLineArguments( argv , argc);
+
 	if(result == 1)
 	{
 		printUsage();
 		return 1;
-	}else{
+	}
+	else{
 		args=fillCommandLineArguments(argv,argc);
 	}
+
     stream = readImageFile(stream, argv[1]);
     parseDMGTrailer(stream, &dmgTrailer);      // reference of dmgTrailer is passed.
     readXMLOffset(stream,&dmgTrailer,&plist);  //reference of dmgTrailer and plist is passed
-    parseXML(plist,stream,args);
+    char* apfsData = parsePlist(plist, stream);  //Parse the pList and find the APFS data block
 	
+	if (apfsData != NULL)
+	{
+		char *filename = "APFS Image Decompressed";
+
+		printf("\nDecompressing DMG file...\n\n");
+
+		//Decompress the APFS data blocks
+		BLKXTable* dataBlk = NULL;
+		dataBlk = decodeDataBlk(apfsData);   // decode the data block.
+		readDataBlks(dataBlk, stream, filename);    // loop through the chunks to decompress each.
+
+		//Parse the APFS image
+		parse_APFS(args, filename);
+	}
+	else
+	{
+		printf("Failed to parse the DMG pList\n");
+	}
+
+	free(apfsData);
     free(plist);
+
+    printf("\n");
+
     return 0;
 }
 

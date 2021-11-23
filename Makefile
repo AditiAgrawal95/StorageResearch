@@ -1,7 +1,7 @@
 CC=gcc
 INCLUDES= -I/usr/include/libxml2 -lxml2 -lz
 CFLAGS= -g -ggdb -Wno-format $(INCLUDES)
-DEPS = dmgParser.h apfs.h
+DEPS = dmgParser.h apfs.h pList.h
 OBJ = DMG.o base64.o apfs.o
 
 %.o: %.c $(DEPS)
