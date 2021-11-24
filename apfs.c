@@ -254,6 +254,10 @@ APFS_SuperBlk findValidSuperBlock(FILE *apfs,command_line_args argv)
 				valid_block_header_chkMap = block_header_chkMap;
 				containerSize=fread(&validContainerSuperBlk,1,sizeof(validContainerSuperBlk),apfs);
 			}
+			else{
+				if(argv.container == 1)
+				printContainerHeader(block_header_chkMap,ftell(apfs) - 32);
+			}
 		}
 		else
 		{
@@ -798,19 +802,26 @@ uint8_t searchOmap(FILE *apfsImage, uint32_t blockSize, uint64_t oid,btree_node_
 				If -v <Vol Id> is given :  ONly that particular Vol Id's details are printed.
                 
 */
-apfs_superblock_t readVolumeSuperBlock(FILE* apfs, uint64_t volumeSBAdress,APFS_SuperBlk containerSuperBlk,command_line_args args)
+apfs_superblock_t readAndPrintVolumeSuperBlock(FILE* apfs, uint64_t volumeSBAdress,APFS_SuperBlk containerSuperBlk,command_line_args args)
 {
 	apfs_superblock_t volumeSuperBlock;
 	// Go to the Address of Volume Super Block and print it.
-	fseek(apfs,volumeSBAdress * containerSuperBlk.BlockSize,SEEK_SET);
-	unsigned int sizeofVolSuperBlock = 0;
-	uint32_t volumeSuperBlkAddress =ftell(apfs);
-	
-	if ((sizeofVolSuperBlock = fread(&volumeSuperBlock, 1, sizeof(volumeSuperBlock), apfs)) < 0) {
-		printf("Error reading from apfs File! [%d] size = %lu\n", sizeofVolSuperBlock, sizeof(volumeSuperBlock));
-	}
-
-	return volumeSuperBlock;
+		fseek(apfs,volumeSBAdress * containerSuperBlk.BlockSize,SEEK_SET);
+	    unsigned int sizeofVolSuperBlock = 0;
+		uint32_t volumeSuperBlkAddress =ftell(apfs);
+	    if ((sizeofVolSuperBlock = fread(&volumeSuperBlock, 1, sizeof(volumeSuperBlock), apfs)) < 0) {
+		    printf("Error reading from apfs File! [%d] size = %lu\n", sizeofVolSuperBlock, sizeof(volumeSuperBlock));
+		    return volumeSuperBlock;
+	    }
+		if(args.volume == 1 && args.volume_ID == 0 )
+		printVolumeSuperBlock(volumeSuperBlock,volumeSuperBlkAddress, sizeofVolSuperBlock);
+	    else if (args.volume == 1 && args.volume_ID != 0 )
+		{
+		  if(args.volume_ID == volumeSuperBlock.apfs_o.o_oid)
+			 printVolumeSuperBlock(volumeSuperBlock,volumeSuperBlkAddress, sizeofVolSuperBlock);
+		     return volumeSuperBlock;
+		}
+		return volumeSuperBlock;
 }
 
 /*
@@ -841,7 +852,7 @@ apfs_superblock_t findValidVolumeSuperBlock(FILE *apfs,omap_phys_t omapStructure
 			printf(" Volume ID %lu does not exist!!",oid);
 			return volumeSuperBlock;
 		}
-	    volumeSuperBlock = readVolumeSuperBlock(apfs,volumeSBAdress,containerSuperBlk,args);
+	    volumeSuperBlock = readAndPrintVolumeSuperBlock(apfs,volumeSBAdress,containerSuperBlk,args);
 	
 	}else if(args.volume == 1 && args.volume_ID == 0 ){
 		for(int noOfVolItr =0;noOfVolItr < NX_MAX_FILE_SYSTEMS;noOfVolItr++)
@@ -852,7 +863,7 @@ apfs_superblock_t findValidVolumeSuperBlock(FILE *apfs,omap_phys_t omapStructure
 			{
 			oid = containerSuperBlk.VolumesIdents[noOfVolItr];
 			uint8_t volSB = searchOmap(apfs, containerSuperBlk.BlockSize,oid,omapBTree,endOfOmapBtree,&volumeSBAdress);
-	        readVolumeSuperBlock(apfs,volumeSBAdress,containerSuperBlk,args);
+	        readAndPrintVolumeSuperBlock(apfs,volumeSBAdress,containerSuperBlk,args);
 	
 			}
 		}
