@@ -150,7 +150,6 @@ Description: Function prints the structure of container superblock,
 starting address and size.
 
  */
-
 void printContainerSuperBlock(APFS_SuperBlk containerSuperBlk, uint32_t containerAddress, uint32_t sizeOfContainer,APFS_BH block_header)
 {
 	printf("\n");
@@ -265,6 +264,8 @@ APFS_SuperBlk findValidSuperBlock(FILE *apfs,command_line_args argv)
 
 		}
 	}
+	if(argv.container == 1)
+	printContainerSuperBlock(containerSuperBlk,validSuperBlockAddress,containerSize,valid_block_header_chkMap);
 	return validContainerSuperBlk;
 }
 
@@ -868,9 +869,6 @@ apfs_superblock_t findValidVolumeSuperBlock(FILE *apfs,omap_phys_t omapStructure
 			}
 		}
 	}
-
-	if (args.fs_structure != 1)
-		printVolumeSuperBlock(volumeSuperBlock, volumeSBAdress, 0);
 
 	return volumeSuperBlock;
 }
