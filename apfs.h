@@ -48,6 +48,27 @@
 #define J_FILE_EXTENT_FLAG_MASK 0xff00000000000000ULL
 #define J_FILE_EXTENT_FLAG_SHIFT 56
 
+/* Inode Numbers */
+#define INVALID_INO_NUM 0
+#define ROOT_DIR_PARENT 1
+#define ROOT_DIR_INO_NUM 2
+#define PRIV_DIR_INO_NUM 3
+#define SNAP_DIR_INO_NUM 6
+#define PURGEABLE_DIR_INO_NUM 7
+#define MIN_USER_INO_NUM 16
+#define UNIFIED_ID_SPACE_MARK 0x0800000000000000ULL
+
+/* Directory Entry File Types */
+#define DT_UNKNOWN 0
+#define DT_FIFO 1
+#define DT_CHR 2
+#define DT_DIR 4
+#define DT_BLK 6
+#define DT_REG 8
+#define DT_LNK 10
+#define DT_SOCK 12
+#define DT_WHT 14
+
 typedef uint8_t  tApFS_Uuid;
 typedef uint64_t tApFS_Ident;
 typedef uint64_t tApFS_Transaction;
@@ -513,6 +534,10 @@ struct j_drec_hashed_key {
 } __attribute__((packed));
 typedef struct j_drec_hashed_key j_drec_hashed_key_t;
 
+typedef enum {
+	DREC_TYPE_MASK = 0x000f,
+	RESERVED_10 = 0x0010
+} dir_rec_flags;
 
 // Directory Stat 
 struct j_dir_stats_key {
@@ -551,9 +576,9 @@ struct j_file_extent_val {
 typedef struct j_file_extent_val j_file_extent_val_t;
 
 struct fs_obj {
-	uint8_t cflag;
-	char *filename;
-	uint64_t id;
+	char *filename;	 /* Filename */
+	uint64_t prev_parent;
+	uint64_t prev_oid;
 };
 
 //Function Declarations
@@ -562,10 +587,7 @@ void parse_APFS(command_line_args, char*);
 APFS_SuperBlk findValidSuperBlock( FILE *,command_line_args );
 omap_phys_t parseValidContainerSuperBlock( FILE *,APFS_SuperBlk , int);
 apfs_superblock_t findValidVolumeSuperBlock( FILE *,omap_phys_t,APFS_SuperBlk,command_line_args );
-btree_node_phys_t parseAPFSVolumeBlock(FILE *, apfs_superblock_t,APFS_SuperBlk,int*);
 btree_node_phys_t readAndPrintBtree(FILE*);
-void parseFSTree(FILE*,btree_node_phys_t ,int);
-void parseFSObjects(uint8_t,FILE*,uint16_t,int,uint16_t,uint16_t,struct fs_obj*);
 int compArray(uint8_t*, int, uint8_t*, int);
 int searchBTree(FILE *, uint32_t, uint8_t *,uint,uint, uint64_t *,btree_node_phys_t,int,uint64_t *);
 uint8_t searchOmap(FILE *, uint32_t , uint64_t ,btree_node_phys_t,int,uint64_t*);

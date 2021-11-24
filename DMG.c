@@ -212,8 +212,12 @@ void printUsage()
 command_line_args fillCommandLineArguments(char **argv,int argc)
 {
 	command_line_args args={0};
-	if( strlen(argv[2]) > 0 )
-	{
+
+	if (argc == 2) {
+		args.fs_structure = 1;
+	        args.volume = 1;
+		args.volume_ID = 1026;
+	} else if( strlen(argv[2]) > 0 ) {
 		if(strcmp(argv[2],"-c") == 0 || strcmp(argv[2],"-C") == 0) {
 		    args.container = 1;
 		}

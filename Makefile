@@ -13,4 +13,4 @@ make:	$(OBJ)
 .PHONY: clean
 
 clean:
-	rm -rf *.o DMG decompressed* *.txt
+	rm -rf *.o DMG decompressed* *.txt child* root parent
